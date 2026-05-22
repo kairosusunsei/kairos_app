@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+  <title>KAIROS Scarab mark</title>
+  <defs>
+    <linearGradient id="scarabG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c9a56a"/>
+      <stop offset="100%" stop-color="#5c4320"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="32" cy="38" rx="22" ry="14" fill="url(#scarabG)" stroke="#9B773D" stroke-width="2.4"/>
+  <path fill="#0f0731" d="M32 10c-6 8-10 18-10 28h20c0-10-4-20-10-28z"/>
+  <ellipse cx="32" cy="22" rx="8" ry="6" fill="url(#scarabG)" stroke="#9B773D" stroke-width="2"/>
+  <path stroke="#9B773D" stroke-width="2.4" stroke-linecap="round" d="M14 36c-4-2-6-6-6-10M50 36c4-2 6-6 6-10"/>
+  <path stroke="#00c8ff" stroke-width="1.2" stroke-linecap="round" opacity="0.45" d="M22 42h20M24 46h16"/>
+</svg>

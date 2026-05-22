@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>KAIROS — Redirecting to Checkout</title>
+  <link rel="stylesheet" href="/styles.css"/>
+</head>
+<body class="bg-kairos-void px-6 py-12 font-bold text-kairos-parchment">
+  <p class="font-science text-sm text-kairos-cobalt/90">Stripe Checkout へ移動しています…</p>
+  <script>
+    (function () {
+      var currentLocale = document.documentElement.lang || 'ja';
+      var sp = new URLSearchParams(window.location.search);
+      var plan = sp.get('plan') || 'single';
+      window.location.replace('/api/checkout?plan=' + encodeURIComponent(plan) + '&locale=' + encodeURIComponent(currentLocale));
+    })();
+  </script>
+</body>
+</html>

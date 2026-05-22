@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply antialiased;
+  }
+  body {
+    @apply min-h-screen bg-kairos-void font-body text-lg font-bold tracking-wide text-[#f2ebe0];
+  }
+}
+
+@layer utilities {
+  /* #9B773D (kairos-brass) 中心の強い発光 — 文字の埋没を防ぐ */
+  .text-kairos-gold-glow {
+    color: #f8f1e6;
+    text-shadow:
+      0 0 2px rgba(155, 119, 61, 1),
+      0 0 6px rgba(155, 119, 61, 0.95),
+      0 0 14px rgba(201, 165, 106, 0.85),
+      0 0 28px rgba(155, 119, 61, 0.65),
+      0 0 48px rgba(228, 199, 138, 0.45),
+      0 2px 0 rgba(15, 7, 49, 0.9),
+      0 4px 12px rgba(0, 0, 0, 0.55);
+  }
+  .text-kairos-omen-glow {
+    color: #faf6ef;
+    text-shadow:
+      0 0 2px rgba(155, 119, 61, 0.9),
+      0 0 8px rgba(155, 119, 61, 0.55),
+      0 0 18px rgba(201, 165, 106, 0.4),
+      0 2px 4px rgba(15, 7, 49, 0.8);
+  }
+}
