@@ -1,0 +1,32 @@
+# KAIROS: Simplified/Traditional Chinese UI resources are not published.
+# Complements IP-region guardrails; disallow Greater China consumer search crawlers site-wide.
+
+User-agent: Baiduspider
+Disallow: /
+
+User-agent: Baiduspider-render
+Disallow: /
+
+User-agent: Baiduspider-image
+Disallow: /
+
+User-agent: Sogou web spider
+Disallow: /
+
+User-agent: Sogou inst spider
+Disallow: /
+
+User-agent: Sogou Pic Spider
+Disallow: /
+
+User-agent: 360Spider
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: YisouSpider
+Disallow: /
+
+User-agent: *
+Allow: /

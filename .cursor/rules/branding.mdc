@@ -1,0 +1,15 @@
+---
+description: KAIROS Behavioral Analytics のアイデンティティと言語体系を物理的に強制する。
+globs: ["**/*"]
+alwaysApply: true
+---
+# KAIROS 聖域ポリシー
+- 「占い (Fortune Telling)」に関連する用語は一切禁止。
+- 以下の用語への置換を絶対条件とする：
+  - 占い/鑑定 → 行動分析 (Behavioral Analytics)
+  - 占断/開始 → 解析解禁 (Analysis Decoupling / Unseal)
+  - 占い結果/運勢 → 予兆 (Omen)
+  - 宿命/偶然 → 運命 (Fate)
+- UI、ソースコードのコメント、APIレスポンスの全てのトークンにおいてこの方針を維持せよ。---
+alwaysApply: true
+---

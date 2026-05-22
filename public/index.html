@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"/>
+  <meta name="googlebot" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"/>
+  <meta name="bingbot" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"/>
+  <meta name="slurp" content="index,follow"/>
+  <title>KAIROS — Behavioral Analytics</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/styles.css"/>
+  <style>
+    /* styles.css 未読込時もメイン UI を表示（フォールバック） */
+    body { background-color: #0f0731; color: #f2ebe0; }
+    main { display: flex; flex-direction: column; width: 100%; }
+    #data-ingest-section { display: flex; width: 100%; min-height: 16rem; }
+    #behavior-ingest {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      min-height: 20rem;
+      border: 4px dashed #9b773d;
+      border-radius: 0.5rem;
+      padding: 1.25rem;
+    }
+    #behavior-ingest textarea {
+      display: block;
+      width: 100%;
+      min-height: 12rem;
+      color: #f8f1e6;
+      background: transparent;
+    }
+    #omen-report.hidden { display: none; }
+  </style>
+</head>
+<body class="relative overflow-x-hidden bg-kairos-void bg-kairos-radial bg-fixed font-bold">
+  <div class="pointer-events-none fixed inset-0 bg-kairos-radial animate-victorian-shimmer" aria-hidden="true"></div>
+
+  <header class="relative z-10 border-b-2 border-kairos-brass/50 bg-kairos-void/95 px-4 py-5 backdrop-blur-sm sm:px-8">
+    <div class="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4">
+      <div class="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
+        <img src="/scarab.svg" width="52" height="52" class="h-12 w-12 shrink-0 opacity-98 sm:h-14 sm:w-14 drop-shadow-[0_0_16px_rgba(155,119,61,0.65)]" alt="" decoding="async"/>
+        <div class="min-w-0">
+          <p class="font-display text-4xl font-black uppercase leading-none tracking-[0.12em] text-kairos-brass text-kairos-gold-glow sm:text-5xl sm:tracking-[0.16em]">KAIROS</p>
+          <p id="i18n-header-sub" class="font-science mt-1 text-xs font-bold uppercase tracking-wide text-kairos-brass/90 text-kairos-gold-glow sm:text-sm">Behavioral Analytics // Lab-grade inference</p>
+        </div>
+      </div>
+      <a id="i18n-legal" class="font-science shrink-0 text-xs font-black text-kairos-cobalt underline decoration-kairos-brass/60 decoration-2 underline-offset-4 hover:text-white sm:text-sm" href="/legal/tokushoho">Legal / 特商法</a>
+    </div>
+  </header>
+
+  <main class="relative z-10 mx-auto flex w-full max-w-5xl flex-col items-center px-4 py-8 sm:px-6 sm:py-10">
+    <section id="data-ingest-section" class="flex w-full min-h-[calc(100vh-10rem)] flex-col items-center justify-center py-4 sm:py-6">
+      <div class="w-full max-w-xl sm:max-w-2xl">
+        <div class="mb-4 text-center sm:mb-5">
+          <p id="i18n-data-ingest-kicker" class="font-display text-xs font-black uppercase tracking-[0.42em] text-kairos-brass text-kairos-gold-glow sm:text-sm">Analysis Decoupling</p>
+          <h1 id="i18n-data-ingest-title" class="mt-2 font-display text-2xl font-black tracking-wide text-[#f8f1e6] text-kairos-gold-glow sm:text-3xl">行動データ投入</h1>
+          <p id="i18n-data-ingest-hint" class="font-science mx-auto mt-2 max-w-lg text-sm font-bold leading-relaxed text-kairos-cobalt/95 text-kairos-omen-glow sm:text-base">
+            テキストを貼り付けるか、画像・PDF・CSV・テキストを枠内にドロップ
+          </p>
+        </div>
+
+        <div
+          id="behavior-ingest"
+          class="flex min-h-96 cursor-text flex-col rounded-lg border-[4px] border-dashed border-kairos-brass bg-kairos-void/70 px-4 py-5 shadow-[0_0_40px_rgba(155,119,61,0.25),inset_0_0_60px_rgba(15,7,49,0.35)] ring-1 ring-kairos-brass/30 backdrop-blur-md transition-shadow sm:min-h-[32rem] sm:px-6 sm:py-6"
+        >
+          <textarea
+            id="paste-input"
+            rows="8"
+            class="min-h-[12rem] w-full flex-1 resize-y border-0 bg-transparent px-1 py-2 font-body text-lg font-bold leading-relaxed text-[#f8f1e6] text-kairos-omen-glow placeholder:font-bold placeholder:text-kairos-brass/55 focus:outline-none focus:ring-0 sm:text-xl"
+            placeholder="ここにテキストを貼り付け…"
+          ></textarea>
+          <div class="mt-3 flex flex-shrink-0 flex-col items-stretch gap-3 border-t-2 border-kairos-brass/35 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <label
+              id="file-pick-label"
+              class="font-science cursor-pointer text-center text-xs font-black uppercase tracking-[0.2em] text-kairos-brass text-kairos-gold-glow hover:text-kairos-neon-hot sm:text-sm"
+            >
+              <span id="i18n-file-pick">ファイルを選択</span>
+              <input id="file-input" type="file" class="sr-only" accept="image/*,.pdf,.csv,text/plain,.txt,text/csv" multiple/>
+            </label>
+            <p id="file-list" class="max-w-full text-center font-science text-xs font-bold text-kairos-cobalt/90 text-kairos-omen-glow sm:text-left sm:text-sm"></p>
+          </div>
+
+          <div id="plan-picker" class="mt-5 grid grid-cols-1 gap-2 border-t-2 border-kairos-brass/25 pt-5 sm:grid-cols-3">
+            <label class="flex cursor-pointer items-center gap-2 rounded border-2 border-kairos-brass/40 bg-kairos-void/50 px-3 py-2 font-science text-xs font-bold text-kairos-parchment">
+              <input type="radio" name="billing-plan" value="single" checked class="accent-kairos-brass"/>
+              <span>1回 ¥300</span>
+            </label>
+            <label class="flex cursor-pointer items-center gap-2 rounded border-2 border-kairos-brass/40 bg-kairos-void/50 px-3 py-2 font-science text-xs font-bold text-kairos-parchment">
+              <input type="radio" name="billing-plan" value="bundle" class="accent-kairos-brass"/>
+              <span>5回 ¥1,000</span>
+            </label>
+            <label class="flex cursor-pointer items-center gap-2 rounded border-2 border-kairos-brass/40 bg-kairos-void/50 px-3 py-2 font-science text-xs font-bold text-kairos-parchment">
+              <input type="radio" name="billing-plan" value="subscription" class="accent-kairos-brass"/>
+              <span>月額 ¥2,000</span>
+            </label>
+          </div>
+          <div class="mt-5 border-t-2 border-kairos-brass/25 pt-5">
+            <button
+              id="analyze-btn"
+              type="button"
+              class="font-display w-full border-2 border-kairos-brass/70 bg-kairos-brass/25 px-6 py-4 text-base font-black uppercase tracking-[0.2em] text-[#fdf8f0] text-kairos-gold-glow shadow-brass transition hover:border-kairos-cobalt/70 hover:bg-kairos-cobalt/20 hover:text-white focus:outline-none focus:ring-4 focus:ring-kairos-brass/40 disabled:cursor-not-allowed disabled:opacity-40 sm:py-5 sm:text-lg"
+            >
+              行動分析を実行
+            </button>
+            <p id="analyze-status" class="mt-3 text-center font-science text-sm font-bold text-kairos-cobalt/90 text-kairos-omen-glow"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div id="omen-report" class="relative mt-6 hidden w-full max-w-4xl rounded-sm border-2 border-kairos-brass/55 bg-kairos-ink/60 p-1 shadow-brass backdrop-blur-md">
+      <div
+        id="omen-report-frame"
+        class="relative overflow-hidden rounded-sm border-2 border-kairos-brass/35 bg-gradient-to-br from-kairos-void/55 via-kairos-ink/45 to-kairos-void/65 p-6 sm:p-10"
+      >
+        <div class="pointer-events-none absolute left-3 top-3 h-10 w-10 border-l-2 border-t-2 border-kairos-brass/60" aria-hidden="true"></div>
+        <div class="pointer-events-none absolute right-3 top-3 h-10 w-10 border-r-2 border-t-2 border-kairos-brass/60" aria-hidden="true"></div>
+        <div class="pointer-events-none absolute bottom-3 left-3 h-10 w-10 border-b-2 border-l-2 border-kairos-brass/60" aria-hidden="true"></div>
+        <div class="pointer-events-none absolute bottom-3 right-3 h-10 w-10 border-b-2 border-r-2 border-kairos-brass/60" aria-hidden="true"></div>
+
+        <div id="omen-report-body" class="relative transition-[filter,opacity] duration-500">
+          <div class="mb-8 flex flex-col items-center gap-4 border-b-2 border-kairos-brass/30 pb-8">
+            <div id="report-scarab" class="relative flex h-28 w-28 items-center justify-center rounded-full border-2 border-kairos-brass/50 bg-kairos-void/75 shadow-brass sm:h-32 sm:w-32 animate-scarab-pulse">
+              <svg class="h-[5.5rem] w-[5.5rem] sm:h-24 sm:w-24" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <defs>
+                  <linearGradient id="rep-g-cobalt" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#00f0ff"/>
+                    <stop offset="100%" stop-color="#0066cc"/>
+                  </linearGradient>
+                  <linearGradient id="rep-g-brass" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#e4c78a"/>
+                    <stop offset="100%" stop-color="#6b4f24"/>
+                  </linearGradient>
+                </defs>
+                <ellipse cx="32" cy="38" rx="22" ry="14" fill="url(#rep-g-brass)" stroke="#9B773D" stroke-width="2.4"/>
+                <path fill="#0f0731" d="M32 10c-6 8-10 18-10 28h20c0-10-4-20-10-28z"/>
+                <ellipse cx="32" cy="22" rx="8" ry="6" fill="url(#rep-g-brass)" stroke="#9B773D" stroke-width="2"/>
+                <path stroke="#9B773D" stroke-width="2.4" stroke-linecap="round" d="M14 36c-4-2-6-6-6-10M50 36c4-2 6-6 6-10"/>
+                <path stroke="#c9a56a" stroke-width="1.6" stroke-linecap="round" d="M22 42h20M24 46h16"/>
+              </svg>
+            </div>
+            <h2 id="i18n-report-title" class="font-display text-xl font-black uppercase tracking-[0.28em] text-kairos-brass text-kairos-gold-glow sm:text-2xl">予兆レポート</h2>
+          </div>
+
+          <p id="seal-banner" class="mb-6 hidden rounded border-2 border-kairos-neon/50 bg-kairos-neon/15 px-4 py-3 text-center font-science text-sm font-black leading-snug text-kairos-neon text-kairos-omen-glow sm:text-base"></p>
+
+          <div class="grid gap-6 md:grid-cols-2">
+            <div class="rounded border-2 border-kairos-soot/80 bg-kairos-void/65 p-5 shadow-inner md:col-span-2">
+              <p id="i18n-score-label" class="mb-2 font-science text-xs font-black uppercase tracking-widest text-kairos-cobalt text-kairos-gold-glow sm:text-sm">予兆スコア</p>
+              <p id="omen-score" class="font-display text-5xl font-black tabular-nums text-[#fdf8f0] text-kairos-gold-glow sm:text-6xl sm:leading-none">—</p>
+            </div>
+            <div id="cell-fate" class="rounded border-2 border-kairos-soot/80 bg-kairos-void/65 p-5 shadow-inner">
+              <p id="i18n-fate-label" class="mb-3 font-science text-xs font-black uppercase tracking-widest text-kairos-brass text-kairos-gold-glow sm:text-sm">運命ベクトル</p>
+              <p id="omen-fate" class="whitespace-pre-wrap font-body text-lg font-bold leading-relaxed text-[#f2ebe0] text-kairos-omen-glow sm:text-xl sm:leading-relaxed"></p>
+            </div>
+            <div id="cell-advice" class="rounded border-2 border-kairos-soot/80 bg-kairos-void/65 p-5 shadow-inner">
+              <p id="i18n-advice-label" class="mb-3 font-science text-xs font-black uppercase tracking-widest text-kairos-brass text-kairos-gold-glow sm:text-sm">戦略的助言</p>
+              <p id="omen-advice" class="whitespace-pre-wrap font-body text-lg font-bold leading-relaxed text-[#f2ebe0] text-kairos-omen-glow sm:text-xl sm:leading-relaxed"></p>
+            </div>
+            <div id="cell-leak" class="rounded border-2 border-kairos-soot/80 bg-kairos-void/65 p-5 shadow-inner md:col-span-2">
+              <p id="i18n-leak-label" class="mb-3 font-science text-xs font-black uppercase tracking-widest text-kairos-neon text-kairos-omen-glow sm:text-sm">深層相関</p>
+              <p id="omen-leak" class="whitespace-pre-wrap font-body text-lg font-bold leading-relaxed text-[#f2ebe0] text-kairos-omen-glow sm:text-xl sm:leading-relaxed"></p>
+            </div>
+          </div>
+        </div>
+
+        <div id="seal-overlay" class="pointer-events-none absolute inset-0 z-20 hidden flex flex-col items-center justify-center bg-kairos-void/75 px-4 backdrop-blur-2xl sm:px-8">
+          <div class="pointer-events-auto flex w-full max-w-lg flex-col items-center gap-6 text-center">
+            <p id="seal-overlay-caption" class="font-science text-sm font-black uppercase tracking-[0.24em] text-kairos-brass text-kairos-gold-glow sm:text-base">Sealed — settlement pending</p>
+            <button id="decouple-btn" type="button" class="font-display inline-flex w-full max-w-md items-center justify-center rounded-md border-[3px] border-kairos-brass bg-gradient-to-b from-kairos-brass/45 to-kairos-ink/90 px-6 py-6 text-xl font-black uppercase tracking-wide text-[#fff9ef] text-kairos-gold-glow shadow-[0_0_32px_rgba(155,119,61,0.5)] animate-pulse-cta transition hover:border-kairos-cobalt/80 hover:from-kairos-cobalt/35 hover:to-kairos-void/95 hover:text-white sm:py-7 sm:text-2xl sm:tracking-[0.14em]">PAY — 解析解禁</button>
+            <p id="seal-overlay-sub" class="font-science text-sm font-bold leading-relaxed text-kairos-cobalt/95 text-kairos-omen-glow"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="mt-8 w-full max-w-4xl">
+    <div id="viral-loop-banner" class="mb-10 w-full rounded-sm border-2 border-kairos-brass/55 bg-kairos-void/80 p-6 text-center shadow-brass backdrop-blur-md">
+      <h3 class="font-display text-lg font-black uppercase tracking-[0.2em] text-kairos-gold-glow mb-3">運命の共有</h3>
+      <p class="font-science text-sm font-bold text-kairos-cobalt/95 mb-6">
+        この予兆を <span class="text-kairos-neon">#エンタメカイロス</span> でシェアしてください。<br>
+        投稿URLを添えて私にDMで報告いただければ、次回の解析に適用可能な100円OFFクーポンを発行します。
+      </p>
+      <button 
+        onclick="window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent('私の運命の予兆を確認しました。 #エンタメカイロス'), '_blank')"
+        class="font-display w-full max-w-sm border-2 border-kairos-neon/60 bg-kairos-neon/10 px-6 py-4 font-black uppercase tracking-[0.1em] text-kairos-neon hover:bg-kairos-neon/20 transition"
+      >
+        運命を拡散してクーポンを獲得
+      </button>
+    </div>
+
+    <details class="relative mt-10 w-full max-w-3xl rounded-sm border-2 border-kairos-brass/40 bg-kairos-ink/45 p-4 backdrop-blur-sm sm:p-5">
+      <summary id="i18n-stream-demo" class="cursor-pointer font-display text-sm font-black uppercase tracking-[0.22em] text-kairos-brass text-kairos-gold-glow sm:text-base">SSE ストリーム（デモ）</summary>
+      <div class="mt-6 flex flex-col items-center gap-8 border-t border-kairos-brass/15 pt-6">
+        <div id="scarab-shell" class="relative flex h-44 w-44 items-center justify-center rounded-full border border-kairos-brass/30 bg-kairos-void/50 shadow-brass transition-shadow duration-300 animate-scarab-idle" data-phase="idle">
+          <div id="scarab-halo" class="pointer-events-none absolute inset-0 rounded-full opacity-0 transition-opacity duration-200" aria-hidden="true"></div>
+          <svg class="relative z-[1] h-32 w-32 drop-shadow-lg" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <linearGradient id="g-cobalt" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#00f0ff"/><stop offset="100%" stop-color="#0066cc"/></linearGradient>
+              <linearGradient id="g-neon" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#ff9500"/><stop offset="100%" stop-color="#ff3d00"/></linearGradient>
+              <linearGradient id="g-brass" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#c9a56a"/><stop offset="100%" stop-color="#6b4f24"/></linearGradient>
+            </defs>
+            <ellipse cx="32" cy="38" rx="22" ry="14" class="scarab-body transition-[fill] duration-300" fill="url(#g-brass)" stroke="#9B773D" stroke-width="2.4"/>
+            <path fill="#0f0731" d="M32 10c-6 8-10 18-10 28h20c0-10-4-20-10-28z"/>
+            <ellipse cx="32" cy="22" rx="8" ry="6" fill="url(#g-brass)" stroke="#9B773D" stroke-width="2"/>
+            <path stroke="#9B773D" stroke-width="2.4" stroke-linecap="round" d="M14 36c-4-2-6-6-6-10M50 36c4-2 6-6 6-10"/>
+            <path stroke="currentColor" class="text-kairos-brass/80" stroke-width="1.6" stroke-linecap="round" d="M22 42h20M24 46h16"/>
+          </svg>
+        </div>
+        <div class="w-full space-y-4 text-center">
+          <button id="unseal-btn" type="button" class="font-display w-full border-2 border-kairos-brass/60 bg-kairos-brass/25 px-6 py-4 text-base font-black uppercase tracking-[0.2em] text-[#fdf8f0] text-kairos-gold-glow shadow-brass transition hover:border-kairos-cobalt/60 hover:bg-kairos-cobalt/15 hover:text-white focus:outline-none focus:ring-4 focus:ring-kairos-brass/35 disabled:cursor-not-allowed disabled:opacity-40 sm:text-lg">解析解禁 (Unseal)</button>
+          <p id="status-line" class="font-science text-sm font-bold text-kairos-cobalt/90 text-kairos-omen-glow">Awaiting signal…</p>
+        </div>
+        <div class="w-full rounded border border-kairos-soot/85 bg-kairos-void/75 p-4 text-left shadow-inner">
+          <p id="i18n-omen" class="mb-2 font-science text-xs font-black uppercase tracking-widest text-kairos-neon text-kairos-omen-glow sm:text-sm">Omen buffer</p>
+          <p id="omen-out" class="min-h-[4.5rem] whitespace-pre-wrap font-body text-lg font-bold leading-relaxed text-[#f2ebe0] text-kairos-omen-glow sm:text-xl"></p>
+        </div>
+      </div>
+    </details>
+    </footer>
+  </main>
+
+  <script>
+    (function () {
+      const SUPPORTED = ['ja', 'en', 'es', 'fr', 'de'];
+      function resolveLocale() {
+        var list = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || 'ja'];
+        for (var i = 0; i < list.length; i++) {
+          var base = String(list[i]).split('-')[0].toLowerCase();
+          if (base === 'zh' || base === 'yue') return 'en';
+          if (SUPPORTED.indexOf(base) >= 0) return base;
+        }
+        return 'ja';
+      }
+      var locale = resolveLocale();
+      var copy = null;
+      function applyCopy(t) {
+        copy = t;
+        document.documentElement.lang = t.htmlLang || 'ja';
+        var map = [
+          ['i18n-header-sub', t.headerSub], ['i18n-legal', t.legal], ['i18n-data-ingest-kicker', t.dataIngestKicker || t.analysisDecoupling],
+          ['i18n-data-ingest-title', t.dataIngestTitle], ['i18n-data-ingest-hint', t.dataIngestHint], ['i18n-file-pick', t.filePickLabel],
+          ['i18n-report-title', t.omenReportTitle], ['i18n-score-label', t.scoreLabel], ['i18n-fate-label', t.fateLabel],
+          ['i18n-advice-label', t.adviceLabel], ['i18n-leak-label', t.leakLabel], ['seal-overlay-caption', t.sealOverlayCaption],
+          ['seal-overlay-sub', t.sealOverlaySub], ['unseal-btn', t.unseal], ['i18n-omen', t.omenBuffer], ['i18n-stream-demo', t.streamDemo],
+          ['analyze-btn', t.runAnalyze],
+        ];
+        for (var j = 0; j < map.length; j++) {
+          var el = document.getElementById(map[j][0]);
+          if (el) el.textContent = map[j][1];
+        }
+        var pi = document.getElementById('paste-input');
+        if (pi && t.pastePlaceholder) pi.placeholder = t.pastePlaceholder;
+        var db = document.getElementById('decouple-btn');
+        if (db && t.decoupleCta) db.textContent = t.decoupleCta;
+      }
+      function initLocale() {
+        return fetch('/locales/' + locale + '.json', { cache: 'force-cache' })
+          .then(function (r) { if (!r.ok) throw new Error('locale_fetch'); return r.json(); })
+          .catch(function () { return fetch('/locales/ja.json', { cache: 'force-cache' }).then(function (r2) { if (!r2.ok) throw new Error('locale_ja'); return r2.json(); }); })
+          .then(applyCopy);
+      }
+      const shell = document.getElementById('scarab-shell'), halo = document.getElementById('scarab-halo'), body = document.querySelector('.scarab-body'), btn = document.getElementById('unseal-btn'), status = document.getElementById('status-line'), out = document.getElementById('omen-out'), behaviorIngest = document.getElementById('behavior-ingest'), fileInput = document.getElementById('file-input'), fileList = document.getElementById('file-list'), pasteInput = document.getElementById('paste-input'), analyzeBtn = document.getElementById('analyze-btn'), analyzeStatus = document.getElementById('analyze-status'), decoupleBtn = document.getElementById('decouple-btn'), omenReport = document.getElementById('omen-report'), omenReportBody = document.getElementById('omen-report-body'), omenReportFrame = document.getElementById('omen-report-frame'), omenScore = document.getElementById('omen-score'), omenFate = document.getElementById('omen-fate'), omenAdvice = document.getElementById('omen-advice'), omenLeak = document.getElementById('omen-leak'), sealBanner = document.getElementById('seal-banner'), sealOverlay = document.getElementById('seal-overlay');
+      var pickedFiles = [];
+      let phase = 0, es = null;
+      let lastSealState = null;
+      function t(key, fallback) { return copy && copy[key] ? copy[key] : fallback; }
+      function renderFileNames() {
+        if (!fileList) return;
+        if (!pickedFiles.length) { fileList.textContent = ''; return; }
+        var names = []; for (var i = 0; i < pickedFiles.length; i++) names.push(pickedFiles[i].name);
+        fileList.textContent = names.join(' · ');
+      }
+      function mergeInputFiles() {
+        var fromInput = fileInput.files ? Array.prototype.slice.call(fileInput.files) : [];
+        if (!fromInput.length) return;
+        var map = {};
+        for (var a = 0; a < pickedFiles.length; a++) { map[pickedFiles[a].name + ':' + pickedFiles[a].size] = pickedFiles[a]; }
+        for (var b = 0; b < fromInput.length; b++) {
+          var f = fromInput[b];
+          var k = f.name + ':' + f.size;
+          if (!map[k]) { map[k] = f; pickedFiles.push(f); }
+        }
+        renderFileNames(); fileInput.value = '';
+      }
+      if (fileInput) fileInput.addEventListener('change', mergeInputFiles);
+      if (behaviorIngest) {
+        ['dragenter', 'dragover'].forEach(function (ev) { behaviorIngest.addEventListener(ev, function (e) { e.preventDefault(); e.stopPropagation(); behaviorIngest.classList.add('border-kairos-cobalt/60', 'bg-kairos-cobalt/10', 'ring-1', 'ring-kairos-cobalt/30'); }); });
+        ['dragleave', 'drop'].forEach(function (ev) { behaviorIngest.addEventListener(ev, function (e) { e.preventDefault(); e.stopPropagation(); behaviorIngest.classList.remove('border-kairos-cobalt/60', 'bg-kairos-cobalt/10', 'ring-1', 'ring-kairos-cobalt/30'); }); });
+        behaviorIngest.addEventListener('drop', function (e) {
+          var dt = e.dataTransfer;
+          if (!dt) return;
+          if (dt.files && dt.files.length) { var list = Array.prototype.slice.call(dt.files); for (var i = 0; i < list.length; i++) pickedFiles.push(list[i]); renderFileNames(); }
+          var txt = dt.getData('text/plain');
+          if (txt && pasteInput) { var cur = pasteInput.value; pasteInput.value = cur ? cur + (cur.slice(-1) === '\n' ? '' : '\n') + txt : txt; }
+        });
+      }
+      document.getElementById('file-pick-label') && document.getElementById('file-pick-label').addEventListener('click', function (e) { e.stopPropagation(); });
+      function getSelectedPlan() {
+        var picked = document.querySelector('input[name="billing-plan"]:checked');
+        return (picked && picked.value) || 'single';
+      }
+      function goToStripeCheckout(plan) {
+        var currentLocale = document.documentElement.lang || 'ja';
+        var selectedPlan = plan || getSelectedPlan();
+        window.location.href = '/api/checkout?plan=' + encodeURIComponent(selectedPlan) + '&locale=' + encodeURIComponent(currentLocale);
+      }
+      function runAnalyzeRequest(inputText) {
+        if (!inputText) return Promise.resolve();
+        if (!analyzeBtn) return Promise.resolve();
+        analyzeBtn.disabled = true;
+        if (analyzeStatus) analyzeStatus.textContent = t('statusAnalyzing', 'Analyzing…');
+        pulseReportScarab();
+        return fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inputText: inputText, locale: locale }),
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              if (!r.ok || !j.success) throw new Error(j.error || j.detail || 'request_failed');
+              return j;
+            });
+          })
+          .then(function (payload) {
+            renderAnalyzeResult(payload);
+            if (analyzeStatus) analyzeStatus.textContent = t('statusAnalyzed', 'Done.');
+          })
+          .catch(function (e) {
+            if (analyzeStatus) analyzeStatus.textContent = t('errorPrefix', 'Error: ') + (e.message || 'failed');
+          })
+          .then(function () { analyzeBtn.disabled = false; });
+      }
+      function runPendingAnalyzeAfterCheckout() {
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('checkout') !== 'success') return;
+        var inputText = '';
+        try { inputText = sessionStorage.getItem('kairos_pending_input') || ''; } catch (_) {}
+        if (!inputText.trim()) {
+          if (analyzeStatus) analyzeStatus.textContent = t('decoupleHint', 'Run behavioral analytics again after payment.');
+          return;
+        }
+        runAnalyzeRequest(inputText.trim()).then(function () {
+          try { sessionStorage.removeItem('kairos_pending_input'); } catch (_) {}
+        });
+      }
+      function setSealedVisual(on) {
+        if (omenReportBody) { omenReportBody.classList.toggle('blur-3xl', !!on); omenReportBody.classList.toggle('select-none', !!on); omenReportBody.classList.toggle('opacity-40', !!on); omenReportBody.classList.toggle('saturate-50', !!on); omenReportBody.classList.toggle('pointer-events-none', !!on); }
+      }
+      function setReportScarabIdleMotion(sealed) {
+        var rs = document.getElementById('report-scarab');
+        if (!rs) return;
+        rs.classList.remove('animate-scarab-pulse', 'animate-scarab-gold-aura');
+        void rs.offsetWidth; rs.classList.add(sealed ? 'animate-scarab-pulse' : 'animate-scarab-gold-aura');
+      }
+      function setUnsealedReportChrome(on) {
+        if (!omenReportFrame) return;
+        omenReportFrame.classList.toggle('shadow-[0_0_48px_rgba(0,200,255,0.22),0_0_80px_rgba(255,107,26,0.12)]', !!on);
+        omenReportFrame.classList.toggle('ring-2', !!on); omenReportFrame.classList.toggle('ring-kairos-brass/50', !!on); omenReportFrame.classList.toggle('animate-report-prismatic', !!on);
+        if (omenReportBody) { omenReportBody.classList.toggle('brightness-105', !!on); omenReportBody.classList.toggle('saturate-125', !!on); }
+      }
+      function playScarabUnseal() {
+        var rs = document.getElementById('report-scarab');
+        if (!rs) return;
+        rs.classList.remove('animate-scarab-pulse', 'animate-scarab-gold-aura');
+        void rs.offsetWidth; rs.classList.add('animate-scarab-unseal');
+        window.setTimeout(function () { rs.classList.remove('animate-scarab-unseal'); rs.classList.add('animate-scarab-gold-aura'); }, 1200);
+      }
+      function renderAnalyzeResult(payload) {
+        if (!omenReport) return;
+        var data = payload || {};
+        omenReport.classList.remove('hidden');
+        lastSealState = false;
+        if (omenScore) omenScore.textContent = data.score != null ? String(data.score) : '—';
+        if (omenFate) omenFate.textContent = data.vector || '';
+        if (omenAdvice) omenAdvice.textContent = data.advice || '';
+        if (omenLeak) omenLeak.textContent = data.correlation || '';
+        setSealedVisual(false);
+        if (sealBanner) { sealBanner.textContent = ''; sealBanner.classList.add('hidden'); }
+        if (sealOverlay) { sealOverlay.classList.add('hidden'); sealOverlay.classList.remove('flex'); }
+        setUnsealedReportChrome(true);
+        playScarabUnseal();
+      }
+      function pulseReportScarab() {
+        var rs = document.getElementById('report-scarab');
+        if (!rs) return;
+        var sealed = lastSealState !== false;
+        rs.classList.remove('animate-scarab-pulse', 'animate-scarab-gold-aura');
+        void rs.offsetWidth; rs.classList.add(sealed ? 'animate-scarab-pulse' : 'animate-scarab-gold-aura');
+      }
+      if (decoupleBtn) decoupleBtn.addEventListener('click', function () { goToStripeCheckout(getSelectedPlan()); });
+      if (analyzeBtn) analyzeBtn.addEventListener('click', function () {
+        function run() {
+          var inputText = ((pasteInput && pasteInput.value) || '').trim();
+          if (!inputText) { if (analyzeStatus) analyzeStatus.textContent = t('errorNoInput', 'Add input.'); return; }
+          try { sessionStorage.setItem('kairos_pending_input', inputText); } catch (_) {}
+          goToStripeCheckout(getSelectedPlan());
+        }
+        if (copy) run(); else initLocale().then(run);
+      });
+      function setIdleMotion(on) { if (!shell) return; if (on) shell.classList.add('animate-scarab-idle'); else shell.classList.remove('animate-scarab-idle'); }
+      function pulseForChunk() {
+        if (!shell) return;
+        phase = (phase + 1) % 2; const cobalt = phase === 0;
+        shell.classList.remove('animate-data-hit-cobalt', 'animate-data-hit-neon'); void shell.offsetWidth;
+        shell.classList.add(cobalt ? 'animate-data-hit-cobalt' : 'animate-data-hit-neon');
+        halo.className = 'pointer-events-none absolute inset-0 rounded-full opacity-100 transition-opacity duration-200 ' + (cobalt ? 'shadow-cobalt-glow bg-kairos-cobalt/5' : 'shadow-neon-glow bg-kairos-neon/5');
+        if (body) { body.setAttribute('fill', cobalt ? 'url(#g-cobalt)' : 'url(#g-neon)'); }
+        setTimeout(function () { halo.classList.remove('opacity-100'); halo.classList.add('opacity-0'); if (body) body.setAttribute('fill', 'url(#g-brass)'); }, 520);
+      }
+      function stopStream() { if (es) { es.close(); es = null; } }
+      if (btn) btn.addEventListener('click', function () {
+        function runStream() {
+          if (!shell) return; stopStream(); if (out) out.textContent = ''; btn.disabled = true; if (status) status.textContent = t('statusReceiving', 'Receiving model stream…'); setIdleMotion(false);
+          es = new EventSource('/api/gemini-stream');
+          es.onmessage = function (ev) {
+            try {
+              var d = JSON.parse(ev.data);
+              if (d.error) { if (status) status.textContent = t('errorPrefix', 'Error: ') + d.error; stopStream(); btn.disabled = false; setIdleMotion(true); return; }
+              if (d.done) { if (status) status.textContent = t('statusComplete', 'Stream complete.'); stopStream(); btn.disabled = false; setIdleMotion(true); return; }
+              if (d.text) { pulseForChunk(); if (out) out.textContent += d.text; }
+            } catch (_) { if (status) status.textContent = t('statusParseErr', 'Parse error.'); }
+          };
+          es.onerror = function () { if (status) status.textContent = t('statusConnClosed', 'Connection closed.'); stopStream(); btn.disabled = false; setIdleMotion(true); };
+        }
+        if (copy) runStream(); else initLocale().then(runStream);
+      });
+      initLocale()
+        .then(function () {
+          if (status) status.textContent = t('statusAwaiting', 'Awaiting signal…');
+          runPendingAnalyzeAfterCheckout();
+        })
+        .catch(function () {
+          if (status) status.textContent = 'Awaiting signal…';
+          runPendingAnalyzeAfterCheckout();
+        });
+      if (shell) setIdleMotion(true);
+    })();
+  </script>
+</body>
+</html>

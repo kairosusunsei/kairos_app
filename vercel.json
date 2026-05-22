@@ -1,0 +1,13 @@
+{
+  "buildCommand": "npm run build",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index" },
+    { "source": "/webhook", "destination": "/api/index" },
+    { "source": "/legal/tokushoho", "destination": "/api/index" }
+  ],
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 300
+    }
+  }
+}

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>KAIROS — Settlement complete</title>
+  <link rel="stylesheet" href="/styles.css"/>
+</head>
+<body class="bg-kairos-void px-6 py-12 font-bold text-kairos-parchment">
+  <p class="font-science text-sm text-kairos-cobalt/90">決済完了。深層心理レポートを生成しています…</p>
+  <script>
+    (function () {
+      var sp = new URLSearchParams(window.location.search);
+      var sessionId = sp.get('session_id') || '';
+      var q = 'checkout=success';
+      if (sessionId) q += '&session_id=' + encodeURIComponent(sessionId);
+      window.location.replace('/?' + q);
+    })();
+  </script>
+</body>
+</html>
