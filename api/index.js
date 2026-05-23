@@ -1,9 +1,16 @@
 require('dotenv').config();
 const path = require('path');
 const express = require('express');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2026-03-04.preview', // AIエージェント決済(MPP)に必須のバージョン
-});
+
+function getStripeClient() {
+  const secret = process.env.STRIPE_SECRET_KEY;
+  if (!secret) return null;
+  return require('stripe')(secret, {
+    apiVersion: '2026-03-04.preview', // AIエージェント決済(MPP)に必須のバージョン
+  });
+}
+
+const stripe = getStripeClient();
 const { GoogleGenAI } = require('@google/genai');
 
 const { PricingEngine } = require(path.join(__dirname, '..', 'lib', 'pricing-engine.js'));
@@ -388,29 +395,50 @@ deepSynchronicity: A beautiful explanation of deep synchronicity in their life r
  * PricingPlanSelector からの遷移を受け、Stripe Checkout へ 303 リダイレクト。
  * plan: single | bundle | subscription
  */
+function resolveCheckoutPlan(plan) {
+  if (plan === 'single') {
+    return {
+      priceId: process.env.STRIPE_PRICE_SINGLE,
+      sessionMode: 'payment',
+      envName: 'STRIPE_PRICE_SINGLE',
+    };
+  }
+  if (plan === 'bundle') {
+    return {
+      priceId: process.env.STRIPE_PRICE_BUNDLE,
+      sessionMode: 'payment',
+      envName: 'STRIPE_PRICE_BUNDLE',
+    };
+  }
+  if (plan === 'subscription') {
+    return {
+      priceId: process.env.STRIPE_PRICE_SUBSCRIPTION,
+      sessionMode: 'subscription',
+      envName: 'STRIPE_PRICE_SUBSCRIPTION',
+    };
+  }
+  return null;
+}
+
 app.get('/api/checkout', async (req, res) => {
   try {
-    if (!process.env.STRIPE_SECRET_KEY) {
+    if (!stripe || !process.env.STRIPE_SECRET_KEY) {
+      console.error('Stripe Checkout Error: STRIPE_SECRET_KEY is not configured');
       return res.status(503).send('Stripe Gateway Connection Error');
     }
 
     const { plan, locale } = req.query;
     const currentLocale = locale || 'ja';
+    const resolved = resolveCheckoutPlan(plan);
 
-    let priceId = '';
-    let sessionMode = 'payment';
-
-    if (plan === 'single') {
-      priceId = process.env.STRIPE_PRICE_SINGLE || 'price_1回都度300円のID';
-      sessionMode = 'payment';
-    } else if (plan === 'bundle') {
-      priceId = process.env.STRIPE_PRICE_BUNDLE || 'price_5回セット1000円のID';
-      sessionMode = 'payment';
-    } else if (plan === 'subscription') {
-      priceId = process.env.STRIPE_PRICE_SUBSCRIPTION || 'price_月額2000円のID';
-      sessionMode = 'subscription';
-    } else {
+    if (!resolved) {
       return res.status(400).send('Invalid billing plan selected.');
+    }
+
+    const { priceId, sessionMode, envName } = resolved;
+    if (!priceId || !String(priceId).startsWith('price_')) {
+      console.error(`Stripe Checkout Error: ${envName} is missing or invalid`);
+      return res.status(503).send('Stripe Gateway Connection Error');
     }
 
     const session = await stripe.checkout.sessions.create({
@@ -428,12 +456,15 @@ app.get('/api/checkout', async (req, res) => {
     });
 
     if (!session.url) {
+      console.error('Stripe Checkout Error: session.url was empty');
       return res.status(500).send('Stripe Gateway Connection Error');
     }
 
     return res.redirect(303, session.url);
   } catch (error) {
     console.error('Stripe Checkout Error:', error.message);
+    if (error.type) console.error('Stripe Checkout Error type:', error.type);
+    if (error.code) console.error('Stripe Checkout Error code:', error.code);
     return res.status(500).send('Stripe Gateway Connection Error');
   }
 });
@@ -444,7 +475,7 @@ app.get('/api/checkout', async (req, res) => {
  * - AI エージェント (X-KAIROS-Payer: agent): 初回 402 + PAYMENT-REQUIRED (x402)、署名後は Stripe で検証。
  */
 app.post('/api/payment-intent', async (req, res) => {
-  if (!process.env.STRIPE_SECRET_KEY) {
+  if (!stripe || !process.env.STRIPE_SECRET_KEY) {
     return res.status(503).json({ error: 'stripe_not_configured' });
   }
 
