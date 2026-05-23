@@ -34,6 +34,78 @@
       background: transparent;
     }
     #omen-report.hidden { display: none; }
+    #legal-modal[hidden] { display: none; }
+    #legal-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      background: rgba(8, 4, 24, 0.82);
+      backdrop-filter: blur(10px);
+    }
+    #legal-modal-card {
+      position: relative;
+      width: 100%;
+      max-width: 42rem;
+      max-height: min(88vh, 52rem);
+      overflow: hidden;
+      border: 2px solid rgba(155, 119, 61, 0.55);
+      border-radius: 0.5rem;
+      background: linear-gradient(160deg, rgba(20, 12, 48, 0.98) 0%, rgba(12, 8, 32, 0.98) 100%);
+      box-shadow: 0 0 48px rgba(155, 119, 61, 0.22), inset 0 0 60px rgba(15, 7, 49, 0.35);
+    }
+    #legal-modal-scroll {
+      max-height: min(88vh, 52rem);
+      overflow-y: auto;
+      padding: 1.5rem 1.25rem 1.75rem;
+    }
+    #legal-modal-close {
+      position: absolute;
+      top: 0.65rem;
+      right: 0.65rem;
+      z-index: 2;
+      display: flex;
+      height: 2.25rem;
+      width: 2.25rem;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid rgba(155, 119, 61, 0.5);
+      border-radius: 0.25rem;
+      background: rgba(15, 7, 49, 0.85);
+      color: #e4c78a;
+      font-size: 1.25rem;
+      line-height: 1;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s, background 0.2s;
+    }
+    #legal-modal-close:hover {
+      border-color: rgba(0, 240, 255, 0.55);
+      color: #fff9ef;
+      background: rgba(0, 100, 140, 0.25);
+    }
+    .legal-section + .legal-section { margin-top: 1.75rem; padding-top: 1.5rem; border-top: 1px solid rgba(155, 119, 61, 0.28); }
+    .legal-section h3 { font-family: Cinzel, serif; font-size: 0.95rem; font-weight: 900; letter-spacing: 0.12em; color: #c9a56a; margin-bottom: 0.85rem; }
+    .legal-section dl { margin: 0; font-size: 0.8rem; line-height: 1.65; color: #d8d0c4; }
+    .legal-section dt { font-weight: 800; color: #9b773d; margin-top: 0.65rem; }
+    .legal-section dt:first-child { margin-top: 0; }
+    .legal-section dd { margin: 0.2rem 0 0 0; padding-left: 0; }
+    .legal-section p { margin: 0.5rem 0 0; font-size: 0.8rem; line-height: 1.7; color: #d8d0c4; }
+    .legal-section p strong { color: #e4c78a; }
+    #legal-footer-link {
+      font-size: 0.7rem;
+      letter-spacing: 0.06em;
+      color: rgba(155, 119, 61, 0.85);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 0;
+    }
+    #legal-footer-link:hover { color: #00f0ff; }
   </style>
 </head>
 <body class="relative overflow-x-hidden bg-kairos-void bg-kairos-radial bg-fixed font-bold">
@@ -45,7 +117,7 @@
         <img src="/scarab.svg" width="52" height="52" class="h-12 w-12 shrink-0 opacity-98 sm:h-14 sm:w-14 drop-shadow-[0_0_16px_rgba(155,119,61,0.65)]" alt="" decoding="async"/>
         <div class="min-w-0">
           <p class="font-display text-4xl font-black uppercase leading-none tracking-[0.12em] text-kairos-brass text-kairos-gold-glow sm:text-5xl sm:tracking-[0.16em]">KAIROS</p>
-          <p id="i18n-header-sub" class="font-science mt-1 text-xs font-bold uppercase tracking-wide text-kairos-brass/90 text-kairos-gold-glow sm:text-sm">Behavioral Analytics // Lab-grade inference</p>
+          <p id="i18n-header-sub" class="font-science mt-1 text-xs font-bold uppercase tracking-wide text-kairos-brass/90 text-kairos-gold-glow sm:text-sm">AI自己認知テックSaaS // 深層心理インフェレンス</p>
         </div>
       </div>
       <a id="i18n-legal" class="font-science shrink-0 text-xs font-black text-kairos-cobalt underline decoration-kairos-brass/60 decoration-2 underline-offset-4 hover:text-white sm:text-sm" href="/legal/tokushoho">Legal / 特商法</a>
@@ -143,26 +215,26 @@
                 <path stroke="#c9a56a" stroke-width="1.6" stroke-linecap="round" d="M22 42h20M24 46h16"/>
               </svg>
             </div>
-            <h2 id="i18n-report-title" class="font-display text-xl font-black uppercase tracking-[0.28em] text-kairos-brass text-kairos-gold-glow sm:text-2xl">予兆レポート</h2>
+            <h2 id="i18n-report-title" class="font-display text-xl font-black uppercase tracking-[0.28em] text-kairos-brass text-kairos-gold-glow sm:text-2xl">深層心理レポート</h2>
           </div>
 
           <p id="seal-banner" class="mb-6 hidden rounded border-2 border-kairos-neon/50 bg-kairos-neon/15 px-4 py-3 text-center font-science text-sm font-black leading-snug text-kairos-neon text-kairos-omen-glow sm:text-base"></p>
 
           <div class="grid gap-6 md:grid-cols-2">
             <div class="rounded border-2 border-kairos-soot/80 bg-kairos-void/65 p-5 shadow-inner md:col-span-2">
-              <p id="i18n-score-label" class="mb-2 font-science text-xs font-black uppercase tracking-widest text-kairos-cobalt text-kairos-gold-glow sm:text-sm">予兆スコア</p>
+              <p id="i18n-score-label" class="mb-2 font-science text-xs font-black uppercase tracking-widest text-kairos-cobalt text-kairos-gold-glow sm:text-sm">シンクロニシティ・スコア</p>
               <p id="omen-score" class="font-display text-5xl font-black tabular-nums text-[#fdf8f0] text-kairos-gold-glow sm:text-6xl sm:leading-none">—</p>
             </div>
             <div id="cell-fate" class="rounded border-2 border-kairos-soot/80 bg-kairos-void/65 p-5 shadow-inner">
-              <p id="i18n-fate-label" class="mb-3 font-science text-xs font-black uppercase tracking-widest text-kairos-brass text-kairos-gold-glow sm:text-sm">運命ベクトル</p>
+              <p id="i18n-fate-label" class="mb-3 font-science text-xs font-black uppercase tracking-widest text-kairos-brass text-kairos-gold-glow sm:text-sm">思考共鳴ベクトル</p>
               <p id="omen-fate" class="whitespace-pre-wrap font-body text-lg font-bold leading-relaxed text-[#f2ebe0] text-kairos-omen-glow sm:text-xl sm:leading-relaxed"></p>
             </div>
             <div id="cell-advice" class="rounded border-2 border-kairos-soot/80 bg-kairos-void/65 p-5 shadow-inner">
-              <p id="i18n-advice-label" class="mb-3 font-science text-xs font-black uppercase tracking-widest text-kairos-brass text-kairos-gold-glow sm:text-sm">戦略的助言</p>
+              <p id="i18n-advice-label" class="mb-3 font-science text-xs font-black uppercase tracking-widest text-kairos-brass text-kairos-gold-glow sm:text-sm">マインド・チューニング</p>
               <p id="omen-advice" class="whitespace-pre-wrap font-body text-lg font-bold leading-relaxed text-[#f2ebe0] text-kairos-omen-glow sm:text-xl sm:leading-relaxed"></p>
             </div>
             <div id="cell-leak" class="rounded border-2 border-kairos-soot/80 bg-kairos-void/65 p-5 shadow-inner md:col-span-2">
-              <p id="i18n-leak-label" class="mb-3 font-science text-xs font-black uppercase tracking-widest text-kairos-neon text-kairos-omen-glow sm:text-sm">深層相関</p>
+              <p id="i18n-leak-label" class="mb-3 font-science text-xs font-black uppercase tracking-widest text-kairos-neon text-kairos-omen-glow sm:text-sm">深層シンクロニシティ</p>
               <p id="omen-leak" class="whitespace-pre-wrap font-body text-lg font-bold leading-relaxed text-[#f2ebe0] text-kairos-omen-glow sm:text-xl sm:leading-relaxed"></p>
             </div>
           </div>
@@ -180,16 +252,16 @@
 
     <footer class="mt-8 w-full max-w-4xl">
     <div id="viral-loop-banner" class="mb-10 w-full rounded-sm border-2 border-kairos-brass/55 bg-kairos-void/80 p-6 text-center shadow-brass backdrop-blur-md">
-      <h3 class="font-display text-lg font-black uppercase tracking-[0.2em] text-kairos-gold-glow mb-3">運命の共有</h3>
+      <h3 class="font-display text-lg font-black uppercase tracking-[0.2em] text-kairos-gold-glow mb-3">シンクロの共有</h3>
       <p class="font-science text-sm font-bold text-kairos-cobalt/95 mb-6">
-        この予兆を <span class="text-kairos-neon">#エンタメカイロス</span> でシェアしてください。<br>
+        この深層心理レポートを <span class="text-kairos-neon">#エンタメカイロス</span> でシェアしてください。<br>
         投稿URLを添えて私にDMで報告いただければ、次回の解析に適用可能な100円OFFクーポンを発行します。
       </p>
       <button 
-        onclick="window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent('私の運命の予兆を確認しました。 #エンタメカイロス'), '_blank')"
+        onclick="window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent('私の深層心理レポートを確認しました。 #エンタメカイロス'), '_blank')"
         class="font-display w-full max-w-sm border-2 border-kairos-neon/60 bg-kairos-neon/10 px-6 py-4 font-black uppercase tracking-[0.1em] text-kairos-neon hover:bg-kairos-neon/20 transition"
       >
-        運命を拡散してクーポンを獲得
+        インサイトを共有してクーポンを獲得
       </button>
     </div>
 
@@ -216,13 +288,68 @@
           <p id="status-line" class="font-science text-sm font-bold text-kairos-cobalt/90 text-kairos-omen-glow">Awaiting signal…</p>
         </div>
         <div class="w-full rounded border border-kairos-soot/85 bg-kairos-void/75 p-4 text-left shadow-inner">
-          <p id="i18n-omen" class="mb-2 font-science text-xs font-black uppercase tracking-widest text-kairos-neon text-kairos-omen-glow sm:text-sm">Omen buffer</p>
+          <p id="i18n-omen" class="mb-2 font-science text-xs font-black uppercase tracking-widest text-kairos-neon text-kairos-omen-glow sm:text-sm">Insight buffer</p>
           <p id="omen-out" class="min-h-[4.5rem] whitespace-pre-wrap font-body text-lg font-bold leading-relaxed text-[#f2ebe0] text-kairos-omen-glow sm:text-xl"></p>
         </div>
       </div>
     </details>
+
+    <div class="mt-12 w-full border-t border-kairos-brass/25 pt-6 pb-8 text-center">
+      <button type="button" id="legal-footer-link" aria-haspopup="dialog" aria-controls="legal-modal">特定商取引法に基づく表記および利用規約</button>
+      <p class="mt-2 font-science text-[0.65rem] font-bold text-kairos-cobalt/60">© KAIROS Behavioral Analytics</p>
+    </div>
     </footer>
   </main>
+
+  <div id="legal-modal" hidden role="dialog" aria-modal="true" aria-labelledby="legal-modal-title">
+    <div id="legal-modal-card">
+      <button type="button" id="legal-modal-close" aria-label="閉じる">×</button>
+      <div id="legal-modal-scroll">
+        <p id="legal-modal-title" class="font-display text-sm font-black uppercase tracking-[0.22em] text-kairos-brass text-kairos-gold-glow pr-10">Legal</p>
+
+        <section class="legal-section" aria-labelledby="legal-tokushoho-heading">
+          <h3 id="legal-tokushoho-heading">特定商取引法に基づく表記</h3>
+          <dl>
+            <dt>1. 販売価格</dt>
+            <dd>
+                KAIROS Single Scan：300円<br>
+                KAIROS 5回一括セット券：1,000円<br>
+                KAIROS Monthly Premium：2,000円（毎月自動更新）<br>
+                （すべて消費税込み）
+            </dd>
+            <dt>2. 代金の支払時期および方法</dt>
+            <dd>決済時（クレジットカード決済、Stripeによる即時決済）。</dd>
+            <dt>3. 役務の提供時期</dt>
+            <dd>決済手続き完了後、画面上でのテキストデータの自動生成および描画により即時提供。</dd>
+            <dt>4. 返品・キャンセル（返金）</dt>
+            <dd>デジタルコンテンツという商品の性質上、決済完了後はいかなる理由があっても返金、返品、購入キャンセル、決済取り消しには一切応じられません。</dd>
+            <dt>5. 事業者名称</dt>
+            <dd>KAIROS Behavioral Analytics 運営事務局</dd>
+            <dt>6. 運営責任者</dt>
+            <dd>井伊聖二</dd>
+            <dt>7. 所在地</dt>
+            <dd>〒104-0061 東京都中央区銀座１丁目１２番４号 N&amp;E BLD.６F</dd>
+            <dt>8. 電話番号</dt>
+            <dd>050-1792-9036（受付時間：10:00〜18:00／土日祝を除く）</dd>
+            <dt>9. 連絡先メールアドレス</dt>
+            <dd><a class="text-kairos-cobalt underline decoration-kairos-brass/50" href="mailto:kairos.official.owner@gmail.com">kairos.official.owner@gmail.com</a></dd>
+          </dl>
+        </section>
+
+        <section class="legal-section" aria-labelledby="legal-terms-heading">
+          <h3 id="legal-terms-heading">KAIROS 利用規約（エンタメ心理分析コンテンツ）</h3>
+          <p><strong>第1条（サービス目的）</strong><br/>
+            本サービス「KAIROS」は、ユーザーから入力された任意のテキストデータをAIが機械的に分析し、それに応じた言語・心理表現テキストを出力する、純粋なエンターテインメント（娯楽テキストコンテンツ消費）の提供を目的としたサービスです。いかなる科学的、医学的、運命論的、または現実の事象における未来予測や事実を保証するものではありません。</p>
+          <p><strong>第2条（完全免責事項）</strong><br/>
+            AIによって自動生成・表示されるテキスト、スコア、その他一切の出力結果は、システム内部のアルゴリズムが演出上生成するテキストデータです。ユーザーはこれらを個人の娯楽の範囲で自己責任において解釈するものとし、本サービスの利用、およびその出力テキストを契機として直接的・間接的に生じたユーザーのいかなる選択、トラブル、損害、損失（精神的・物質的損害を含む）について、運営者は法律上のいかなる法的責任も負いません。</p>
+          <p><strong>第3条（返金不可）</strong><br/>
+            通信回線の障害、システムエラー、サーバー遅延等を含むいかなる事由があっても、決済完了後は一切の返金、返品、購入キャンセルは行えません。</p>
+          <p><strong>第4条（損害賠償額の上限制限）</strong><br/>
+            消費者契約法その他の法令の適用により、運営者がユーザーに対して損害賠償責任を負うべき法的根拠が生じた場合であっても、運営者が支払うべき損害賠償額の上限は、当該個別トランザクションにおいてユーザーが実際に支払った決済金額を絶対的な上限額とします。</p>
+        </section>
+      </div>
+    </div>
+  </div>
 
   <script>
     (function () {
@@ -375,10 +502,10 @@
         var data = payload || {};
         omenReport.classList.remove('hidden');
         lastSealState = false;
-        if (omenScore) omenScore.textContent = data.score != null ? String(data.score) : '—';
-        if (omenFate) omenFate.textContent = data.vector || '';
-        if (omenAdvice) omenAdvice.textContent = data.advice || '';
-        if (omenLeak) omenLeak.textContent = data.correlation || '';
+        if (omenScore) omenScore.textContent = data.synchronicityScore != null ? String(data.synchronicityScore) : '—';
+        if (omenFate) omenFate.textContent = data.thoughtResonanceVector || '';
+        if (omenAdvice) omenAdvice.textContent = data.mindTuning || '';
+        if (omenLeak) omenLeak.textContent = data.deepSynchronicity || '';
         setSealedVisual(false);
         if (sealBanner) { sealBanner.textContent = ''; sealBanner.classList.add('hidden'); }
         if (sealOverlay) { sealOverlay.classList.add('hidden'); sealOverlay.classList.remove('flex'); }
@@ -439,6 +566,37 @@
           runPendingAnalyzeAfterCheckout();
         });
       if (shell) setIdleMotion(true);
+
+      (function initLegalModal() {
+        var modal = document.getElementById('legal-modal');
+        var openBtn = document.getElementById('legal-footer-link');
+        var closeBtn = document.getElementById('legal-modal-close');
+        var card = document.getElementById('legal-modal-card');
+        if (!modal || !openBtn || !closeBtn) return;
+        var lastFocus = null;
+        function openModal() {
+          lastFocus = document.activeElement;
+          modal.hidden = false;
+          document.body.style.overflow = 'hidden';
+          closeBtn.focus();
+        }
+        function closeModal() {
+          modal.hidden = true;
+          document.body.style.overflow = '';
+          if (lastFocus && lastFocus.focus) lastFocus.focus();
+        }
+        openBtn.addEventListener('click', openModal);
+        closeBtn.addEventListener('click', closeModal);
+        modal.addEventListener('click', function (e) {
+          if (e.target === modal) closeModal();
+        });
+        if (card) {
+          card.addEventListener('click', function (e) { e.stopPropagation(); });
+        }
+        document.addEventListener('keydown', function (e) {
+          if (!modal.hidden && e.key === 'Escape') closeModal();
+        });
+      })();
     })();
   </script>
 </body>
