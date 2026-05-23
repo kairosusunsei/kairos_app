@@ -151,7 +151,12 @@ const tokushohoHtml = `<!DOCTYPE html>
     <h2>販売価格・追加費用</h2>
     <dl>
       <dt>販売価格</dt>
-      <dd>300円（消費税込み）。その他のプランは各決済画面に表示する金額に準じます。</dd>
+      <dd>
+        ・KAIROS Single Scan：300円<br/>
+        ・KAIROS 5回一括セット券：1,000円<br/>
+        ・KAIROS Monthly Premium：2,000円（毎月自動更新）<br/>
+        ※すべて消費税込みの金額です。
+      </dd>
       <dt>商品代金以外の必要料金</dt>
       <dd>インターネット接続料金その他、お客様の通信環境に係る費用はお客様の負担となります。</dd>
     </dl>
