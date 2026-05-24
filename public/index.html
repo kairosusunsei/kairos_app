@@ -312,10 +312,10 @@
           <dl>
             <dt>1. 販売価格</dt>
             <dd>
-                KAIROS Single Scan：300円<br>
-                KAIROS 5回一括セット券：1,000円<br>
-                KAIROS Monthly Premium：2,000円（毎月自動更新）<br>
-                （すべて消費税込み）
+                ・KAIROS Single Scan：300円<br>
+                ・KAIROS 5回一括セット券：1,000円<br>
+                ・KAIROS Monthly Premium：2,000円（毎月自動更新）<br>
+                ※すべて消費税込みの金額です。
             </dd>
             <dt>2. 代金の支払時期および方法</dt>
             <dd>決済時（クレジットカード決済、Stripeによる即時決済）。</dd>
@@ -431,21 +431,36 @@
         var picked = document.querySelector('input[name="billing-plan"]:checked');
         return (picked && picked.value) || 'single';
       }
-      function goToStripeCheckout(plan) {
+      function goToStripeCheckout(plan, inputText) {
         var currentLocale = document.documentElement.lang || 'ja';
         var selectedPlan = plan || getSelectedPlan();
-        window.location.href = '/api/checkout?plan=' + encodeURIComponent(selectedPlan) + '&locale=' + encodeURIComponent(currentLocale);
+        var text = inputText || ((pasteInput && pasteInput.value) || '').trim();
+        fetch('/api/checkout/prepare', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan: selectedPlan, locale: currentLocale, inputText: text }),
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (!data || !data.prepareId) throw new Error('prepare_failed');
+            window.location.href = '/api/checkout?prepareId=' + encodeURIComponent(data.prepareId);
+          })
+          .catch(function () {
+            window.location.href = '/api/checkout?plan=' + encodeURIComponent(selectedPlan) + '&locale=' + encodeURIComponent(currentLocale);
+          });
       }
-      function runAnalyzeRequest(inputText) {
+      function runAnalyzeRequest(inputText, checkoutSessionId) {
         if (!inputText) return Promise.resolve();
         if (!analyzeBtn) return Promise.resolve();
         analyzeBtn.disabled = true;
         if (analyzeStatus) analyzeStatus.textContent = t('statusAnalyzing', 'Analyzing…');
         pulseReportScarab();
+        var body = { inputText: inputText, locale: locale };
+        if (checkoutSessionId) body.checkoutSessionId = checkoutSessionId;
         return fetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ inputText: inputText, locale: locale }),
+          body: JSON.stringify(body),
         })
           .then(function (r) {
             return r.json().then(function (j) {
@@ -465,14 +480,18 @@
       function runPendingAnalyzeAfterCheckout() {
         var params = new URLSearchParams(window.location.search);
         if (params.get('checkout') !== 'success') return;
+        var sessionId = params.get('session_id') || '';
         var inputText = '';
         try { inputText = sessionStorage.getItem('kairos_pending_input') || ''; } catch (_) {}
-        if (!inputText.trim()) {
-          if (analyzeStatus) analyzeStatus.textContent = t('decoupleHint', 'Run behavioral analytics again after payment.');
+        if (!sessionId) {
+          if (analyzeStatus) analyzeStatus.textContent = t('errorPrefix', 'Error: ') + 'missing session_id';
           return;
         }
-        runAnalyzeRequest(inputText.trim()).then(function () {
+        runAnalyzeRequest(inputText.trim(), sessionId).then(function () {
           try { sessionStorage.removeItem('kairos_pending_input'); } catch (_) {}
+          if (window.history && window.history.replaceState) {
+            window.history.replaceState({}, '', window.location.pathname);
+          }
         });
       }
       function setSealedVisual(on) {
@@ -500,17 +519,31 @@
       function renderAnalyzeResult(payload) {
         if (!omenReport) return;
         var data = payload || {};
+        var isLocked = !!(data.locked || data.accessTier === 'teaser');
         omenReport.classList.remove('hidden');
-        lastSealState = false;
+        lastSealState = isLocked;
         if (omenScore) omenScore.textContent = data.synchronicityScore != null ? String(data.synchronicityScore) : '—';
         if (omenFate) omenFate.textContent = data.thoughtResonanceVector || '';
-        if (omenAdvice) omenAdvice.textContent = data.mindTuning || '';
-        if (omenLeak) omenLeak.textContent = data.deepSynchronicity || '';
-        setSealedVisual(false);
-        if (sealBanner) { sealBanner.textContent = ''; sealBanner.classList.add('hidden'); }
-        if (sealOverlay) { sealOverlay.classList.add('hidden'); sealOverlay.classList.remove('flex'); }
-        setUnsealedReportChrome(true);
-        playScarabUnseal();
+        if (isLocked) {
+          if (omenAdvice) omenAdvice.textContent = data.teaserHint || '—';
+          if (omenLeak) omenLeak.textContent = '';
+          setSealedVisual(true);
+          if (sealBanner) {
+            sealBanner.textContent = t('sealBannerLocked', '決済完了後に詳細レポートが解禁されます。');
+            sealBanner.classList.remove('hidden');
+          }
+          if (sealOverlay) { sealOverlay.classList.remove('hidden'); sealOverlay.classList.add('flex'); }
+          setUnsealedReportChrome(false);
+          setReportScarabIdleMotion(true);
+        } else {
+          if (omenAdvice) omenAdvice.textContent = data.mindTuning || '';
+          if (omenLeak) omenLeak.textContent = data.deepSynchronicity || '';
+          setSealedVisual(false);
+          if (sealBanner) { sealBanner.textContent = ''; sealBanner.classList.add('hidden'); }
+          if (sealOverlay) { sealOverlay.classList.add('hidden'); sealOverlay.classList.remove('flex'); }
+          setUnsealedReportChrome(true);
+          playScarabUnseal();
+        }
       }
       function pulseReportScarab() {
         var rs = document.getElementById('report-scarab');
@@ -525,7 +558,7 @@
           var inputText = ((pasteInput && pasteInput.value) || '').trim();
           if (!inputText) { if (analyzeStatus) analyzeStatus.textContent = t('errorNoInput', 'Add input.'); return; }
           try { sessionStorage.setItem('kairos_pending_input', inputText); } catch (_) {}
-          goToStripeCheckout(getSelectedPlan());
+          goToStripeCheckout(getSelectedPlan(), inputText);
         }
         if (copy) run(); else initLocale().then(run);
       });

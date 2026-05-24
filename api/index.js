@@ -16,6 +16,8 @@ const { GoogleGenAI } = require('@google/genai');
 const { PricingEngine } = require(path.join(__dirname, '..', 'lib', 'pricing-engine.js'));
 const { defaultMetadataForKairos } = require(path.join(__dirname, '..', 'lib', 'iso20022-stripe-metadata.js'));
 const { claimStripeWebhookEvent } = require(path.join(__dirname, '..', 'lib', 'webhook-event-store.js'));
+const kairosTransactions = require(path.join(__dirname, '..', 'lib', 'kairos-transactions.js'));
+const checkoutPending = require(path.join(__dirname, '..', 'lib', 'checkout-pending.js'));
 const {
   buildPaymentRequiredPayload,
   encodePaymentRequiredHeader,
@@ -46,7 +48,67 @@ const modelId = 'gemini-3.1-flash-lite';
 
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
+if (endpointSecret) {
+  console.log('[KAIROS] STRIPE_WEBHOOK_SECRET loaded (length=%d)', endpointSecret.length);
+} else {
+  console.warn('[KAIROS] STRIPE_WEBHOOK_SECRET is not set — POST /webhook returns 503');
+}
+
 const pricingEngine = new PricingEngine();
+
+const TEASER_CHAR_LIMIT = 100;
+const FULL_CHAR_LIMIT = 300;
+
+/**
+ * Stripe Checkout セッションが決済済みか検証（Webhook 未到着の race も API 照会で吸収）。
+ * @returns {Promise<object|null>}
+ */
+async function verifyCheckoutSessionPaid(sessionId) {
+  if (!sessionId || typeof sessionId !== 'string' || !sessionId.startsWith('cs_')) {
+    return null;
+  }
+
+  if (kairosTransactions.isPaid(sessionId)) {
+    return kairosTransactions.getPaidSession(sessionId);
+  }
+
+  if (!stripe) return null;
+
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    if (session.payment_status === 'paid') {
+      return kairosTransactions.recordPaidSession(session);
+    }
+    console.log('[verifyCheckoutSessionPaid] unpaid session', {
+      sessionId,
+      paymentStatus: session.payment_status,
+    });
+  } catch (err) {
+    console.error('[verifyCheckoutSessionPaid]', err.message);
+  }
+  return null;
+}
+
+/**
+ * 決済セッション metadata から入力テキストを復元（sessionStorage 消失対策）。
+ */
+async function resolveInputFromCheckoutSession(sessionId) {
+  if (!sessionId || !stripe) return '';
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const fromMeta = session.metadata && session.metadata.inputText;
+    return fromMeta ? String(fromMeta).trim() : '';
+  } catch (err) {
+    console.error('[resolveInputFromCheckoutSession]', err.message);
+    return '';
+  }
+}
+
+function truncateText(value, maxLen) {
+  const s = String(value || '').trim();
+  if (s.length <= maxLen) return s;
+  return s.slice(0, Math.max(0, maxLen - 1)) + '…';
+}
 
 function publicPaymentIntentUrl(req) {
   const host = req.headers['x-forwarded-host'] || req.get('host') || 'localhost';
@@ -64,8 +126,12 @@ app.post(
   async (request, response) => {
     const sig = request.headers['stripe-signature'];
     if (!endpointSecret) {
-      console.error('STRIPE_WEBHOOK_SECRET is not configured');
+      console.error('[Webhook] STRIPE_WEBHOOK_SECRET is not configured');
       return response.status(503).json({ received: false, error: 'misconfigured' });
+    }
+    if (!stripe) {
+      console.error('[Webhook] STRIPE_SECRET_KEY is not configured');
+      return response.status(503).json({ received: false, error: 'stripe_not_configured' });
     }
 
     let event;
@@ -84,6 +150,24 @@ app.post(
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
       const userId = session.client_reference_id;
+
+      console.log('[Webhook] checkout.session.completed', {
+        eventId: event.id,
+        sessionId: session.id,
+        paymentStatus: session.payment_status,
+        mode: session.mode,
+        plan: session.metadata && session.metadata.plan,
+        clientReferenceId: userId || null,
+      });
+
+      const recorded = kairosTransactions.recordPaidSession(session);
+      if (recorded) {
+        console.log('[Webhook] kairos_transactions recorded', {
+          sessionId: recorded.sessionId,
+          plan: recorded.plan,
+          paidAt: recorded.paidAt,
+        });
+      }
 
       if (userId && process.env.GEMINI_API_KEY) {
         console.log(`\n--- 解析解禁プロセス開始: ${userId} ---`);
@@ -273,21 +357,42 @@ function clampWarmScore(value) {
   return Math.min(99, Math.max(77, Math.round(n)));
 }
 
-function formatAnalyzePayload(raw) {
+function formatAnalyzePayload(raw, accessTier) {
+  const tier = accessTier === 'full' ? 'full' : 'teaser';
+  const charLimit = tier === 'full' ? FULL_CHAR_LIMIT : TEASER_CHAR_LIMIT;
+
+  const thoughtResonanceVector = truncateText(
+    raw.thoughtResonanceVector || raw.vector || '',
+    charLimit,
+  );
+  const mindTuningFull = String(raw.mindTuning || raw.advice || '').trim();
+  const deepFull = String(raw.deepSynchronicity || raw.correlation || '').trim();
+
   return {
     success: true,
+    accessTier: tier,
+    locked: tier !== 'full',
     synchronicityScore: clampWarmScore(
       raw.synchronicityScore != null ? raw.synchronicityScore : raw.score,
     ),
-    thoughtResonanceVector: String(
-      raw.thoughtResonanceVector || raw.vector || '',
-    ).trim(),
-    mindTuning: String(raw.mindTuning || raw.advice || '').trim(),
-    deepSynchronicity: String(raw.deepSynchronicity || raw.correlation || '').trim(),
+    thoughtResonanceVector,
+    mindTuning:
+      tier === 'full'
+        ? truncateText(mindTuningFull, FULL_CHAR_LIMIT)
+        : '',
+    deepSynchronicity:
+      tier === 'full'
+        ? truncateText(deepFull, FULL_CHAR_LIMIT)
+        : '',
+    teaserHint:
+      tier === 'teaser'
+        ? truncateText(mindTuningFull || deepFull, TEASER_CHAR_LIMIT)
+        : null,
   };
 }
 
-function warmAnalyzeFallback(locale) {
+function warmAnalyzeFallback(locale, accessTier) {
+  const tier = accessTier === 'full' ? 'full' : 'teaser';
   if (locale === 'en') {
     return formatAnalyzePayload({
       synchronicityScore: 88,
@@ -297,7 +402,7 @@ function warmAnalyzeFallback(locale) {
         'Take a deep breath and soften your shoulders. A gentle turning point is already forming within you.',
       deepSynchronicity:
         'Every meaningful coincidence you notice is your mind recognizing a beautiful pattern of connection.',
-    });
+    }, tier);
   }
   return formatAnalyzePayload({
     synchronicityScore: 88,
@@ -307,17 +412,43 @@ function warmAnalyzeFallback(locale) {
       '深く息を吸い込み、肩の力をそっと抜いてください。優しい転換点が、すでに心の中で芽生えています。',
     deepSynchronicity:
       'あなたが感じる偶然の共鳴は、心が美しいつながりのパターンを認識しているサインです。',
-  });
+  }, tier);
 }
 
 app.post('/api/analyze', async (req, res) => {
   const locale = getClientLocale(req);
-  const userInput =
-    (req.body && (req.body.userInput || req.body.inputText)) || 'おまかせ解析';
+  const checkoutSessionId = String(
+    (req.body && (req.body.checkoutSessionId || req.body.session_id)) || '',
+  ).trim();
+
+  const paidRecord = checkoutSessionId
+    ? await verifyCheckoutSessionPaid(checkoutSessionId)
+    : null;
+  const accessTier = paidRecord ? 'full' : 'teaser';
+
+  let userInput =
+    (req.body && (req.body.userInput || req.body.inputText)) || '';
+  userInput = String(userInput).trim();
+  if (!userInput && paidRecord && checkoutSessionId) {
+    const recovered = await resolveInputFromCheckoutSession(checkoutSessionId);
+    if (recovered) userInput = recovered;
+  }
+  if (!userInput) userInput = 'おまかせ解析';
 
   if (!process.env.GEMINI_API_KEY) {
-    return res.status(200).json(warmAnalyzeFallback(locale));
+    return res.status(200).json(warmAnalyzeFallback(locale, accessTier));
   }
+
+  const charLimitsBlock =
+    accessTier === 'full'
+      ? `【Character Limits — FULL (paid)】
+thoughtResonanceVector: Under ${FULL_CHAR_LIMIT} chars (Japanese) / Under 80 words (English).
+mindTuning: Under ${FULL_CHAR_LIMIT} chars (Japanese) / Under 80 words (English).
+deepSynchronicity: Under ${FULL_CHAR_LIMIT} chars (Japanese) / Under 80 words (English).`
+      : `【Character Limits — TEASER (unpaid preview)】
+thoughtResonanceVector: Under ${TEASER_CHAR_LIMIT} chars (Japanese) / Under 25 words (English) only.
+mindTuning: Still generate internally but keep it concise; client receives teaser only.
+deepSynchronicity: Still generate internally but keep it concise; client receives teaser only.`;
 
   const systemInstruction = `
 You are "KAIROS," a premium AI self-awareness tech companion (not fortune-telling).
@@ -335,9 +466,7 @@ If the client locale is "ja" (Japanese) or other, generate all text fields stric
 
 【Character Limits】
 synchronicityScore: An encouraging number between 77 and 99. Never return anything below 77.
-thoughtResonanceVector: A short, poetic thought-resonance direction. (Under 100 chars in Japanese / Under 30 words in English).
-mindTuning: Warm, supportive mind-tuning guidance. (Under 200 chars in Japanese / Under 60 words in English).
-deepSynchronicity: A beautiful explanation of deep synchronicity in their life right now. (Under 200 chars in Japanese / Under 60 words in English).
+${charLimitsBlock}
 `;
 
   try {
@@ -384,11 +513,38 @@ deepSynchronicity: A beautiful explanation of deep synchronicity in their life r
     });
 
     const resultData = JSON.parse(response.text);
-    return res.status(200).json(formatAnalyzePayload(resultData));
+    const payload = formatAnalyzePayload(resultData, accessTier);
+    if (paidRecord) {
+      payload.checkoutSessionId = paidRecord.sessionId;
+      payload.paidAt = paidRecord.paidAt;
+    }
+    return res.status(200).json(payload);
   } catch (error) {
     console.error('KAIROS API Error:', error);
-    return res.status(200).json(warmAnalyzeFallback(locale));
+    return res.status(200).json(warmAnalyzeFallback(locale, accessTier));
   }
+});
+
+/**
+ * 決済済み Checkout セッションの検証（フロント E2E / 手動確認用）。
+ */
+app.get('/api/unseal', async (req, res) => {
+  const sessionId = String(req.query.session_id || req.query.checkoutSessionId || '').trim();
+  const paidRecord = await verifyCheckoutSessionPaid(sessionId);
+  if (!paidRecord) {
+    return res.status(402).json({
+      success: false,
+      error: 'payment_required',
+      accessTier: 'teaser',
+    });
+  }
+  return res.status(200).json({
+    success: true,
+    accessTier: 'full',
+    checkoutSessionId: paidRecord.sessionId,
+    plan: paidRecord.plan,
+    paidAt: paidRecord.paidAt,
+  });
 });
 
 /**
@@ -420,53 +576,100 @@ function resolveCheckoutPlan(plan) {
   return null;
 }
 
+async function createCheckoutSessionAndRedirect(res, { plan, locale, inputText }) {
+  if (!stripe || !process.env.STRIPE_SECRET_KEY) {
+    console.error('Stripe Checkout Error: STRIPE_SECRET_KEY is not configured');
+    return res.status(503).send('Stripe Gateway Connection Error');
+  }
+
+  const currentLocale = locale || 'ja';
+  const resolved = resolveCheckoutPlan(plan);
+
+  if (!resolved) {
+    return res.status(400).send('Invalid billing plan selected.');
+  }
+
+  const { priceId, sessionMode, envName } = resolved;
+  if (!priceId || !String(priceId).startsWith('price_')) {
+    console.error(`Stripe Checkout Error: ${envName} is missing or invalid`);
+    return res.status(503).send('Stripe Gateway Connection Error');
+  }
+
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ['card'],
+    line_items: [{ price: priceId, quantity: 1 }],
+    mode: sessionMode,
+    locale: currentLocale === 'ja' ? 'ja' : 'auto',
+    metadata: {
+      plan: String(plan),
+      inputText: String(inputText || '').slice(0, 500),
+    },
+    success_url: 'https://get-kairos.online/success?session_id={CHECKOUT_SESSION_ID}',
+    cancel_url: 'https://get-kairos.online/canceled',
+  });
+
+  if (!session.url) {
+    console.error('Stripe Checkout Error: session.url was empty');
+    return res.status(500).send('Stripe Gateway Connection Error');
+  }
+
+  return res.redirect(303, session.url);
+}
+
+app.post('/api/checkout/prepare', (req, res) => {
+  const plan = (req.body && req.body.plan) || 'single';
+  const locale = (req.body && req.body.locale) || 'ja';
+  const inputText = (req.body && (req.body.inputText || req.body.userInput)) || '';
+  if (!resolveCheckoutPlan(plan)) {
+    return res.status(400).json({ error: 'invalid_plan' });
+  }
+  const prepareId = checkoutPending.createPending({ plan, locale, inputText });
+  return res.status(200).json({ prepareId });
+});
+
 app.get('/api/checkout', async (req, res) => {
   try {
-    if (!stripe || !process.env.STRIPE_SECRET_KEY) {
-      console.error('Stripe Checkout Error: STRIPE_SECRET_KEY is not configured');
-      return res.status(503).send('Stripe Gateway Connection Error');
+    let plan = req.query.plan;
+    let locale = req.query.locale;
+    let inputText = '';
+
+    const prepareId = req.query.prepareId;
+    if (prepareId) {
+      const pending = checkoutPending.consumePending(String(prepareId));
+      if (!pending) {
+        return res.status(400).send('Checkout prepare session expired. Please try again.');
+      }
+      plan = pending.plan;
+      locale = pending.locale;
+      inputText = pending.inputText;
     }
 
-    const { plan, locale } = req.query;
-    const currentLocale = locale || 'ja';
-    const resolved = resolveCheckoutPlan(plan);
-
-    if (!resolved) {
-      return res.status(400).send('Invalid billing plan selected.');
-    }
-
-    const { priceId, sessionMode, envName } = resolved;
-    if (!priceId || !String(priceId).startsWith('price_')) {
-      console.error(`Stripe Checkout Error: ${envName} is missing or invalid`);
-      return res.status(503).send('Stripe Gateway Connection Error');
-    }
-
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ],
-      mode: sessionMode,
-      locale: currentLocale === 'ja' ? 'ja' : 'auto',
-      success_url: 'https://get-kairos.online/success?session_id={CHECKOUT_SESSION_ID}',
-      cancel_url: 'https://get-kairos.online/canceled',
+    return await createCheckoutSessionAndRedirect(res, {
+      plan: plan || 'single',
+      locale: locale || 'ja',
+      inputText,
     });
-
-    if (!session.url) {
-      console.error('Stripe Checkout Error: session.url was empty');
-      return res.status(500).send('Stripe Gateway Connection Error');
-    }
-
-    return res.redirect(303, session.url);
   } catch (error) {
     console.error('Stripe Checkout Error:', error.message);
     if (error.type) console.error('Stripe Checkout Error type:', error.type);
     if (error.code) console.error('Stripe Checkout Error code:', error.code);
     return res.status(500).send('Stripe Gateway Connection Error');
   }
+});
+
+app.get('/api/status', (req, res) => {
+  res.status(200).json({
+    ok: true,
+    service: 'kairos',
+    webhookSecretConfigured: Boolean(process.env.STRIPE_WEBHOOK_SECRET),
+    stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY),
+    geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
+    priceIdsConfigured: Boolean(
+      process.env.STRIPE_PRICE_SINGLE &&
+        process.env.STRIPE_PRICE_BUNDLE &&
+        process.env.STRIPE_PRICE_SUBSCRIPTION,
+    ),
+  });
 });
 
 /**
