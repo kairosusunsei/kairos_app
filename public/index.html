@@ -133,6 +133,8 @@
             <option value="es">Español</option>
             <option value="fr">Français</option>
             <option value="de">Deutsch</option>
+            <option value="it">Italiano</option>
+            <option value="pt">Português</option>
           </select>
         </label>
         <a id="i18n-legal" class="font-science shrink-0 text-xs font-black text-kairos-cobalt underline decoration-kairos-brass/60 decoration-2 underline-offset-4 hover:text-white sm:text-sm" href="/legal/tokushoho">Legal / 特商法</a>
@@ -369,7 +371,7 @@
 
   <script>
     (function () {
-      const SUPPORTED = ['ja', 'en', 'es', 'fr', 'de'];
+      const SUPPORTED = ['ja', 'en', 'es', 'fr', 'de', 'it', 'pt'];
       function resolveLocale() {
         try {
           var saved = sessionStorage.getItem('kairos_locale');

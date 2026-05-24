@@ -55,7 +55,7 @@
 | `public/index.html` | メイン UI・プラン選択・法的モーダル |
 | `public/success/index.html` | 決済成功 → `/?checkout=success` |
 | `public/canceled/index.html` | 決済キャンセル |
-| `public/locales/{ja,en,es,fr,de}.json` | UI 文言 |
+| `public/locales/{ja,en,es,fr,de,it,pt}.json` | UI 文言 |
 | `components/PricingPlanSelector.tsx` | React コンポーネント（現フロント未組込・参照用） |
 
 ---
@@ -178,6 +178,8 @@
 | `es` | ✅ | Español | `es` |
 | `fr` | ✅ | Français | `fr` |
 | `de` | ✅ | Deutsch | `de` |
+| `it` | ✅ | Italiano | `it` |
+| `pt` | ✅ | Português | `pt` |
 
 - ブラウザ言語またはヘッダー右上の言語セレクタで切替（`sessionStorage.kairos_locale`）
 - 正本ロジック: `lib/kairos-locale.js`
