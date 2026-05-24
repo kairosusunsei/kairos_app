@@ -396,7 +396,9 @@ function formatAnalyzePayload(raw, accessTier) {
 
 function warmAnalyzeFallback(locale, accessTier) {
   const tier = accessTier === 'full' ? 'full' : 'teaser';
-  return formatAnalyzePayload(kairosLocale.getWarmFallbackPayload(locale), tier);
+  const payload = formatAnalyzePayload(kairosLocale.getWarmFallbackPayload(locale), tier);
+  payload.locale = kairosLocale.normalizeLocale(locale);
+  return payload;
 }
 
 app.post('/api/analyze', async (req, res) => {
@@ -420,7 +422,8 @@ app.post('/api/analyze', async (req, res) => {
   if (!userInput) userInput = kairosLocale.getDefaultUserInput(locale);
 
   if (!process.env.GEMINI_API_KEY) {
-    return res.status(200).json(warmAnalyzeFallback(locale, accessTier));
+    const fb = warmAnalyzeFallback(locale, accessTier);
+    return res.status(200).json(fb);
   }
 
   const charLimitsBlock = kairosLocale.buildCharLimitsBlock(accessTier, locale);
@@ -486,7 +489,7 @@ ${charLimitsBlock}
 
     const resultData = JSON.parse(response.text);
     const payload = formatAnalyzePayload(resultData, accessTier);
-    payload.locale = locale;
+    payload.locale = kairosLocale.normalizeLocale(locale);
     if (paidRecord) {
       payload.checkoutSessionId = paidRecord.sessionId;
       payload.paidAt = paidRecord.paidAt;
@@ -494,7 +497,8 @@ ${charLimitsBlock}
     return res.status(200).json(payload);
   } catch (error) {
     console.error('KAIROS API Error:', error);
-    return res.status(200).json(warmAnalyzeFallback(locale, accessTier));
+    const fb = warmAnalyzeFallback(locale, accessTier);
+    return res.status(200).json(fb);
   }
 });
 
