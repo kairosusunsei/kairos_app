@@ -34,5 +34,6 @@
   "sealedNote": "Paiement en attente — certains champs sont masqués ou floutés.",
   "decoupleCta": "Découplage d’analyse (à partir de 300 JPY)",
   "decoupleHint": "Après paiement, relancez l’analyse sur cette page pour afficher le texte intégral.",
+  "sealBannerLocked": "Finalisez le paiement pour débloquer le rapport psychologique complet.",
   "streamDemo": "Flux SSE (démo)"
 }

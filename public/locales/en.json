@@ -34,5 +34,6 @@
   "sealedNote": "Settlement pending — some fields are masked or blurred.",
   "decoupleCta": "Analysis decoupling (from ¥300)",
   "decoupleHint": "After payment succeeds, run behavioral analytics again on this page to reveal full text.",
+  "sealBannerLocked": "Complete payment to unlock the full deep psychology report.",
   "streamDemo": "SSE stream (demo)"
 }

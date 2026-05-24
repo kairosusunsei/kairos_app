@@ -169,7 +169,19 @@
 | Stripe Promotion Codes 自動発行 | 未実装 |
 | Next.js / middleware.ts | 未使用 |
 
-### E2E 決済後フロー（実装済み）
+### 多言語（2026-05-24 実装）
+
+| ロケール | UI (`public/locales`) | `/api/analyze` 出力 | Stripe Checkout UI |
+|---|---|---|---|
+| `ja` | ✅ | 日本語 | `ja` |
+| `en` | ✅ | English | `en` |
+| `es` | ✅ | Español | `es` |
+| `fr` | ✅ | Français | `fr` |
+| `de` | ✅ | Deutsch | `de` |
+
+- ブラウザ言語またはヘッダー右上の言語セレクタで切替（`sessionStorage.kairos_locale`）
+- 正本ロジック: `lib/kairos-locale.js`
+
 
 1. `analyze-btn` → `sessionStorage.kairos_pending_input` 保存 → `/api/checkout`
 2. Stripe 成功 → `/success?session_id=cs_…` → `/?checkout=success&session_id=cs_…`

@@ -120,7 +120,23 @@
           <p id="i18n-header-sub" class="font-science mt-1 text-xs font-bold uppercase tracking-wide text-kairos-brass/90 text-kairos-gold-glow sm:text-sm">AI自己認知テックSaaS // 深層心理インフェレンス</p>
         </div>
       </div>
-      <a id="i18n-legal" class="font-science shrink-0 text-xs font-black text-kairos-cobalt underline decoration-kairos-brass/60 decoration-2 underline-offset-4 hover:text-white sm:text-sm" href="/legal/tokushoho">Legal / 特商法</a>
+      <div class="flex shrink-0 flex-wrap items-center gap-3">
+        <label class="font-science flex items-center gap-2 text-xs font-bold text-kairos-brass/90">
+          <span id="i18n-lang-label" class="sr-only">Language</span>
+          <select
+            id="locale-picker"
+            class="rounded border border-kairos-brass/50 bg-kairos-void/80 px-2 py-1 text-xs font-bold text-kairos-parchment focus:border-kairos-cobalt/70 focus:outline-none"
+            aria-label="Language"
+          >
+            <option value="ja">日本語</option>
+            <option value="en">English</option>
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+          </select>
+        </label>
+        <a id="i18n-legal" class="font-science shrink-0 text-xs font-black text-kairos-cobalt underline decoration-kairos-brass/60 decoration-2 underline-offset-4 hover:text-white sm:text-sm" href="/legal/tokushoho">Legal / 特商法</a>
+      </div>
     </div>
   </header>
 
@@ -355,6 +371,10 @@
     (function () {
       const SUPPORTED = ['ja', 'en', 'es', 'fr', 'de'];
       function resolveLocale() {
+        try {
+          var saved = sessionStorage.getItem('kairos_locale');
+          if (saved && SUPPORTED.indexOf(saved) >= 0) return saved;
+        } catch (_) {}
         var list = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || 'ja'];
         for (var i = 0; i < list.length; i++) {
           var base = String(list[i]).split('-')[0].toLowerCase();
@@ -388,8 +408,31 @@
       function initLocale() {
         return fetch('/locales/' + locale + '.json', { cache: 'force-cache' })
           .then(function (r) { if (!r.ok) throw new Error('locale_fetch'); return r.json(); })
-          .catch(function () { return fetch('/locales/ja.json', { cache: 'force-cache' }).then(function (r2) { if (!r2.ok) throw new Error('locale_ja'); return r2.json(); }); })
+          .catch(function () {
+            if (locale !== 'en') {
+              locale = 'en';
+              return fetch('/locales/en.json', { cache: 'force-cache' }).then(function (r2) {
+                if (!r2.ok) throw new Error('locale_en');
+                return r2.json();
+              });
+            }
+            locale = 'ja';
+            return fetch('/locales/ja.json', { cache: 'force-cache' }).then(function (r3) {
+              if (!r3.ok) throw new Error('locale_ja');
+              return r3.json();
+            });
+          })
           .then(applyCopy);
+      }
+      function setLocalePickerValue() {
+        var picker = document.getElementById('locale-picker');
+        if (picker) picker.value = locale;
+      }
+      function onLocaleChange(next) {
+        if (!next || SUPPORTED.indexOf(next) < 0) return;
+        locale = next;
+        try { sessionStorage.setItem('kairos_locale', next); } catch (_) {}
+        initLocale().then(setLocalePickerValue);
       }
       const shell = document.getElementById('scarab-shell'), halo = document.getElementById('scarab-halo'), body = document.querySelector('.scarab-body'), btn = document.getElementById('unseal-btn'), status = document.getElementById('status-line'), out = document.getElementById('omen-out'), behaviorIngest = document.getElementById('behavior-ingest'), fileInput = document.getElementById('file-input'), fileList = document.getElementById('file-list'), pasteInput = document.getElementById('paste-input'), analyzeBtn = document.getElementById('analyze-btn'), analyzeStatus = document.getElementById('analyze-status'), decoupleBtn = document.getElementById('decouple-btn'), omenReport = document.getElementById('omen-report'), omenReportBody = document.getElementById('omen-report-body'), omenReportFrame = document.getElementById('omen-report-frame'), omenScore = document.getElementById('omen-score'), omenFate = document.getElementById('omen-fate'), omenAdvice = document.getElementById('omen-advice'), omenLeak = document.getElementById('omen-leak'), sealBanner = document.getElementById('seal-banner'), sealOverlay = document.getElementById('seal-overlay');
       var pickedFiles = [];
@@ -558,6 +601,7 @@
           var inputText = ((pasteInput && pasteInput.value) || '').trim();
           if (!inputText) { if (analyzeStatus) analyzeStatus.textContent = t('errorNoInput', 'Add input.'); return; }
           try { sessionStorage.setItem('kairos_pending_input', inputText); } catch (_) {}
+          try { sessionStorage.setItem('kairos_locale', locale); } catch (_) {}
           goToStripeCheckout(getSelectedPlan(), inputText);
         }
         if (copy) run(); else initLocale().then(run);
@@ -591,6 +635,9 @@
       });
       initLocale()
         .then(function () {
+          setLocalePickerValue();
+          var picker = document.getElementById('locale-picker');
+          if (picker) picker.addEventListener('change', function () { onLocaleChange(picker.value); });
           if (status) status.textContent = t('statusAwaiting', 'Awaiting signal…');
           runPendingAnalyzeAfterCheckout();
         })

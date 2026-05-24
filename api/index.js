@@ -18,6 +18,7 @@ const { defaultMetadataForKairos } = require(path.join(__dirname, '..', 'lib', '
 const { claimStripeWebhookEvent } = require(path.join(__dirname, '..', 'lib', 'webhook-event-store.js'));
 const kairosTransactions = require(path.join(__dirname, '..', 'lib', 'kairos-transactions.js'));
 const checkoutPending = require(path.join(__dirname, '..', 'lib', 'checkout-pending.js'));
+const kairosLocale = require(path.join(__dirname, '..', 'lib', 'kairos-locale.js'));
 const {
   buildPaymentRequiredPayload,
   encodePaymentRequiredHeader,
@@ -346,9 +347,11 @@ app.use(express.json({ limit: '1mb' }));
 
 function getClientLocale(req) {
   const bodyLocale = req.body && req.body.locale;
-  if (bodyLocale === 'en' || bodyLocale === 'ja') return bodyLocale;
-  const acceptLang = req.headers['accept-language'] || 'ja';
-  return acceptLang.toLowerCase().startsWith('en') ? 'en' : 'ja';
+  const queryLocale = req.query && req.query.locale;
+  return kairosLocale.normalizeLocale(
+    bodyLocale || queryLocale,
+    req.headers['accept-language'],
+  );
 }
 
 function clampWarmScore(value) {
@@ -393,26 +396,7 @@ function formatAnalyzePayload(raw, accessTier) {
 
 function warmAnalyzeFallback(locale, accessTier) {
   const tier = accessTier === 'full' ? 'full' : 'teaser';
-  if (locale === 'en') {
-    return formatAnalyzePayload({
-      synchronicityScore: 88,
-      thoughtResonanceVector:
-        'Your inner rhythm is aligning with a calm, luminous path forward today.',
-      mindTuning:
-        'Take a deep breath and soften your shoulders. A gentle turning point is already forming within you.',
-      deepSynchronicity:
-        'Every meaningful coincidence you notice is your mind recognizing a beautiful pattern of connection.',
-    }, tier);
-  }
-  return formatAnalyzePayload({
-    synchronicityScore: 88,
-    thoughtResonanceVector:
-      'あなたの内なるリズムが、穏やかで光る前進の方向へと美しく整っています。',
-    mindTuning:
-      '深く息を吸い込み、肩の力をそっと抜いてください。優しい転換点が、すでに心の中で芽生えています。',
-    deepSynchronicity:
-      'あなたが感じる偶然の共鳴は、心が美しいつながりのパターンを認識しているサインです。',
-  }, tier);
+  return formatAnalyzePayload(kairosLocale.getWarmFallbackPayload(locale), tier);
 }
 
 app.post('/api/analyze', async (req, res) => {
@@ -433,22 +417,15 @@ app.post('/api/analyze', async (req, res) => {
     const recovered = await resolveInputFromCheckoutSession(checkoutSessionId);
     if (recovered) userInput = recovered;
   }
-  if (!userInput) userInput = 'おまかせ解析';
+  if (!userInput) userInput = kairosLocale.getDefaultUserInput(locale);
 
   if (!process.env.GEMINI_API_KEY) {
     return res.status(200).json(warmAnalyzeFallback(locale, accessTier));
   }
 
-  const charLimitsBlock =
-    accessTier === 'full'
-      ? `【Character Limits — FULL (paid)】
-thoughtResonanceVector: Under ${FULL_CHAR_LIMIT} chars (Japanese) / Under 80 words (English).
-mindTuning: Under ${FULL_CHAR_LIMIT} chars (Japanese) / Under 80 words (English).
-deepSynchronicity: Under ${FULL_CHAR_LIMIT} chars (Japanese) / Under 80 words (English).`
-      : `【Character Limits — TEASER (unpaid preview)】
-thoughtResonanceVector: Under ${TEASER_CHAR_LIMIT} chars (Japanese) / Under 25 words (English) only.
-mindTuning: Still generate internally but keep it concise; client receives teaser only.
-deepSynchronicity: Still generate internally but keep it concise; client receives teaser only.`;
+  const charLimitsBlock = kairosLocale.buildCharLimitsBlock(accessTier, locale);
+  const localeInstruction = kairosLocale.buildAnalyzeLocaleInstruction(locale);
+  const fieldDesc = kairosLocale.getSchemaFieldDescriptions(locale);
 
   const systemInstruction = `
 You are "KAIROS," a premium AI self-awareness tech companion (not fortune-telling).
@@ -460,9 +437,7 @@ You are strictly BANNED from using words like: "反社会的", "表象", "大衆
 Speak like a gentle, wise companion who supports self-cognition and emotional clarity.
 Reassure the user that they are doing beautifully, that their feelings matter, and that a positive inner turning point is blooming.
 
-【Locale Requirements】
-If the client locale is "en" (English), generate all text fields strictly in warm, comforting English.
-If the client locale is "ja" (Japanese) or other, generate all text fields strictly in elegant, natural, heartwarming Japanese.
+${localeInstruction}
 
 【Character Limits】
 synchronicityScore: An encouraging number between 77 and 99. Never return anything below 77.
@@ -484,18 +459,15 @@ ${charLimitsBlock}
             },
             thoughtResonanceVector: {
               type: 'string',
-              description:
-                'Thought resonance vector (思考共鳴ベクトル). Japanese if locale is ja, English if en.',
+              description: fieldDesc.thoughtResonanceVector,
             },
             mindTuning: {
               type: 'string',
-              description:
-                'Mind tuning guidance (マインド・チューニング). Japanese if locale is ja, English if en.',
+              description: fieldDesc.mindTuning,
             },
             deepSynchronicity: {
               type: 'string',
-              description:
-                'Deep synchronicity insight (深層シンクロニシティ). Japanese if locale is ja, English if en.',
+              description: fieldDesc.deepSynchronicity,
             },
           },
           required: [
@@ -514,6 +486,7 @@ ${charLimitsBlock}
 
     const resultData = JSON.parse(response.text);
     const payload = formatAnalyzePayload(resultData, accessTier);
+    payload.locale = locale;
     if (paidRecord) {
       payload.checkoutSessionId = paidRecord.sessionId;
       payload.paidAt = paidRecord.paidAt;
@@ -582,7 +555,7 @@ async function createCheckoutSessionAndRedirect(res, { plan, locale, inputText }
     return res.status(503).send('Stripe Gateway Connection Error');
   }
 
-  const currentLocale = locale || 'ja';
+  const currentLocale = kairosLocale.normalizeLocale(locale, null);
   const resolved = resolveCheckoutPlan(plan);
 
   if (!resolved) {
@@ -599,7 +572,7 @@ async function createCheckoutSessionAndRedirect(res, { plan, locale, inputText }
     payment_method_types: ['card'],
     line_items: [{ price: priceId, quantity: 1 }],
     mode: sessionMode,
-    locale: currentLocale === 'ja' ? 'ja' : 'auto',
+    locale: kairosLocale.getStripeCheckoutLocale(currentLocale),
     metadata: {
       plan: String(plan),
       inputText: String(inputText || '').slice(0, 500),
@@ -618,7 +591,10 @@ async function createCheckoutSessionAndRedirect(res, { plan, locale, inputText }
 
 app.post('/api/checkout/prepare', (req, res) => {
   const plan = (req.body && req.body.plan) || 'single';
-  const locale = (req.body && req.body.locale) || 'ja';
+  const locale = kairosLocale.normalizeLocale(
+    (req.body && req.body.locale) || 'ja',
+    req.headers['accept-language'],
+  );
   const inputText = (req.body && (req.body.inputText || req.body.userInput)) || '';
   if (!resolveCheckoutPlan(plan)) {
     return res.status(400).json({ error: 'invalid_plan' });
@@ -661,6 +637,7 @@ app.get('/api/status', (req, res) => {
   res.status(200).json({
     ok: true,
     service: 'kairos',
+    supportedLocales: kairosLocale.SUPPORTED_LOCALES,
     webhookSecretConfigured: Boolean(process.env.STRIPE_WEBHOOK_SECRET),
     stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY),
     geminiConfigured: Boolean(process.env.GEMINI_API_KEY),

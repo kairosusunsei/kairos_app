@@ -34,5 +34,6 @@
   "sealedNote": "Pago pendiente: algunos campos están enmascarados o difuminados.",
   "decoupleCta": "Desacoplamiento del análisis (desde 300 JPY)",
   "decoupleHint": "Tras el pago, vuelve a ejecutar el análisis en esta página para ver el texto completo.",
+  "sealBannerLocked": "Completa el pago para desbloquear el informe psicológico completo.",
   "streamDemo": "Flujo SSE (demo)"
 }
