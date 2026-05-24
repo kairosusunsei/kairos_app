@@ -107,6 +107,25 @@
     }
     #legal-footer-link:hover { color: #00f0ff; }
   </style>
+  <style>
+    /* 料金プラン — Tailwind 未読込時も大きく表示 */
+    #plan-picker .plan-option-label {
+      font-size: 1.125rem;
+      line-height: 1.35;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+    @media (min-width: 640px) {
+      #plan-picker .plan-option-label {
+        font-size: 1.35rem;
+      }
+    }
+    #plan-picker .plan-option:has(input:checked) {
+      border-color: rgba(201, 162, 39, 0.85);
+      background: rgba(201, 162, 39, 0.12);
+      box-shadow: 0 0 20px rgba(201, 162, 39, 0.2);
+    }
+  </style>
 </head>
 <body class="relative overflow-x-hidden bg-kairos-void bg-kairos-radial bg-fixed font-bold">
   <div class="pointer-events-none fixed inset-0 bg-kairos-radial animate-victorian-shimmer" aria-hidden="true"></div>
@@ -174,18 +193,18 @@
             <p id="file-list" class="max-w-full text-center font-science text-xs font-bold text-kairos-cobalt/90 text-kairos-omen-glow sm:text-left sm:text-sm"></p>
           </div>
 
-          <div id="plan-picker" class="mt-5 grid grid-cols-1 gap-2 border-t-2 border-kairos-brass/25 pt-5 sm:grid-cols-3">
-            <label class="flex cursor-pointer items-center gap-2 rounded border-2 border-kairos-brass/40 bg-kairos-void/50 px-3 py-2 font-science text-xs font-bold text-kairos-parchment">
-              <input type="radio" name="billing-plan" value="single" checked class="accent-kairos-brass"/>
-              <span>1回 ¥300</span>
+          <div id="plan-picker" class="mt-5 grid grid-cols-1 gap-3 border-t-2 border-kairos-brass/25 pt-5 sm:grid-cols-3 sm:gap-4">
+            <label class="plan-option flex cursor-pointer items-center gap-3 rounded border-2 border-kairos-brass/40 bg-kairos-void/50 px-4 py-3 font-science font-black text-kairos-parchment sm:px-5 sm:py-4">
+              <input type="radio" name="billing-plan" value="single" checked class="h-5 w-5 shrink-0 accent-kairos-brass sm:h-6 sm:w-6"/>
+              <span class="plan-option-label text-lg leading-snug sm:text-xl">1回 ¥300</span>
             </label>
-            <label class="flex cursor-pointer items-center gap-2 rounded border-2 border-kairos-brass/40 bg-kairos-void/50 px-3 py-2 font-science text-xs font-bold text-kairos-parchment">
-              <input type="radio" name="billing-plan" value="bundle" class="accent-kairos-brass"/>
-              <span>5回 ¥1,000</span>
+            <label class="plan-option flex cursor-pointer items-center gap-3 rounded border-2 border-kairos-brass/40 bg-kairos-void/50 px-4 py-3 font-science font-black text-kairos-parchment sm:px-5 sm:py-4">
+              <input type="radio" name="billing-plan" value="bundle" class="h-5 w-5 shrink-0 accent-kairos-brass sm:h-6 sm:w-6"/>
+              <span class="plan-option-label text-lg leading-snug sm:text-xl">5回 ¥1,000</span>
             </label>
-            <label class="flex cursor-pointer items-center gap-2 rounded border-2 border-kairos-brass/40 bg-kairos-void/50 px-3 py-2 font-science text-xs font-bold text-kairos-parchment">
-              <input type="radio" name="billing-plan" value="subscription" class="accent-kairos-brass"/>
-              <span>月額 ¥2,000</span>
+            <label class="plan-option flex cursor-pointer items-center gap-3 rounded border-2 border-kairos-brass/40 bg-kairos-void/50 px-4 py-3 font-science font-black text-kairos-parchment sm:px-5 sm:py-4">
+              <input type="radio" name="billing-plan" value="subscription" class="h-5 w-5 shrink-0 accent-kairos-brass sm:h-6 sm:w-6"/>
+              <span class="plan-option-label text-lg leading-snug sm:text-xl">月額 ¥2,000</span>
             </label>
           </div>
           <div class="mt-5 border-t-2 border-kairos-brass/25 pt-5">
