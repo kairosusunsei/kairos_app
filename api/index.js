@@ -685,6 +685,28 @@ function resolveCheckoutPlan(plan) {
   return null;
 }
 
+async function validateStripePriceForMode(priceId, sessionMode, envName) {
+  if (!stripe) return { ok: false, reason: 'stripe_not_configured' };
+  try {
+    const price = await stripe.prices.retrieve(priceId);
+    if (!price.active) {
+      return { ok: false, reason: 'price_inactive', priceType: price.type };
+    }
+    if (sessionMode === 'payment' && price.type !== 'one_time') {
+      console.error(`Stripe Checkout Error: ${envName} must be one_time price, got ${price.type}`);
+      return { ok: false, reason: 'price_type_mismatch', priceType: price.type };
+    }
+    if (sessionMode === 'subscription' && price.type !== 'recurring') {
+      console.error(`Stripe Checkout Error: ${envName} must be recurring price, got ${price.type}`);
+      return { ok: false, reason: 'price_type_mismatch', priceType: price.type };
+    }
+    return { ok: true, priceType: price.type, livemode: price.livemode };
+  } catch (err) {
+    console.error(`Stripe Checkout Error: retrieve ${envName}:`, err.message);
+    return { ok: false, reason: 'price_retrieve_failed', message: err.message };
+  }
+}
+
 async function createCheckoutSessionAndRedirect(res, { plan, locale, inputText, kairosUserId }) {
   if (!stripe || !process.env.STRIPE_SECRET_KEY) {
     console.error('Stripe Checkout Error: STRIPE_SECRET_KEY is not configured');
@@ -701,6 +723,11 @@ async function createCheckoutSessionAndRedirect(res, { plan, locale, inputText, 
   const { priceId, sessionMode, envName } = resolved;
   if (!priceId || !String(priceId).startsWith('price_')) {
     console.error(`Stripe Checkout Error: ${envName} is missing or invalid`);
+    return res.status(503).send('Stripe Gateway Connection Error');
+  }
+
+  const priceCheck = await validateStripePriceForMode(priceId, sessionMode, envName);
+  if (!priceCheck.ok) {
     return res.status(503).send('Stripe Gateway Connection Error');
   }
 
@@ -791,7 +818,30 @@ app.get('/api/status', (req, res) => {
         process.env.STRIPE_PRICE_BUNDLE &&
         process.env.STRIPE_PRICE_SUBSCRIPTION,
     ),
+    singleOnlyLaunch: process.env.KAIROS_SINGLE_ONLY === 'true',
   });
+});
+
+/** Stripe Price ID の実体診断（本番トラブルシュート用） */
+app.get('/api/checkout-health', async (req, res) => {
+  if (!stripe) {
+    return res.status(503).json({ ok: false, error: 'stripe_not_configured' });
+  }
+  const plans = [
+    { plan: 'single', priceId: process.env.STRIPE_PRICE_SINGLE, sessionMode: 'payment' },
+    { plan: 'bundle', priceId: process.env.STRIPE_PRICE_BUNDLE, sessionMode: 'payment' },
+    { plan: 'subscription', priceId: process.env.STRIPE_PRICE_SUBSCRIPTION, sessionMode: 'subscription' },
+  ];
+  const out = {};
+  for (const row of plans) {
+    if (!row.priceId) {
+      out[row.plan] = { ok: false, reason: 'env_missing' };
+      continue;
+    }
+    const check = await validateStripePriceForMode(row.priceId, row.sessionMode, row.plan);
+    out[row.plan] = { priceId: row.priceId, sessionMode: row.sessionMode, ...check };
+  }
+  return res.status(200).json({ ok: true, plans: out });
 });
 
 /**
