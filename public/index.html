@@ -207,6 +207,12 @@
               <span class="plan-option-label text-lg leading-snug sm:text-xl">月額 ¥2,000</span>
             </label>
           </div>
+          <p
+            id="credits-remaining"
+            class="mt-3 hidden text-center font-science text-sm font-bold tracking-wide text-kairos-cobalt text-kairos-omen-glow sm:text-base"
+            role="status"
+            aria-live="polite"
+          ></p>
           <div class="mt-5 border-t-2 border-kairos-brass/25 pt-5">
             <button
               id="analyze-btn"
@@ -406,6 +412,61 @@
       }
       var locale = resolveLocale();
       var copy = null;
+      window.kairosCreditsBalance = 0;
+
+      function getKairosUserId() {
+        var key = 'kairos_user_id';
+        try {
+          var existing = localStorage.getItem(key);
+          if (existing && /^kairos_[a-z0-9_-]+$/i.test(existing)) return existing;
+          var id = 'kairos_' + Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
+          localStorage.setItem(key, id);
+          return id;
+        } catch (_) {
+          return 'kairos_guest_' + Date.now();
+        }
+      }
+
+      function newAnalyzeRequestId() {
+        return 'ar_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+      }
+
+      function formatCreditsTemplate(template, count) {
+        return String(template || '').replace(/\{n\}/g, String(count));
+      }
+
+      function updateCreditsBanner() {
+        var el = document.getElementById('credits-remaining');
+        if (!el) return;
+        var n = window.kairosCreditsBalance || 0;
+        if (n > 0) {
+          el.textContent = formatCreditsTemplate(
+            t('creditsRemaining', 'Remaining analyses: {n}'),
+            n,
+          );
+          el.classList.remove('hidden');
+        } else {
+          el.textContent = '';
+          el.classList.add('hidden');
+        }
+      }
+
+      function refreshCredits() {
+        return fetch('/api/credits?kairosUserId=' + encodeURIComponent(getKairosUserId()), {
+          cache: 'no-store',
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            window.kairosCreditsBalance =
+              data && typeof data.creditsRemaining === 'number' ? data.creditsRemaining : 0;
+            updateCreditsBanner();
+            return data;
+          })
+          .catch(function () {
+            window.kairosCreditsBalance = 0;
+            updateCreditsBanner();
+          });
+      }
       function applyCopy(t) {
         copy = t;
         document.documentElement.lang = t.htmlLang || 'ja';
@@ -502,7 +563,12 @@
         fetch('/api/checkout/prepare', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ plan: selectedPlan, locale: currentLocale, inputText: text }),
+          body: JSON.stringify({
+            plan: selectedPlan,
+            locale: currentLocale,
+            inputText: text,
+            kairosUserId: getKairosUserId(),
+          }),
         })
           .then(function (r) { return r.json(); })
           .then(function (data) {
@@ -513,13 +579,18 @@
             window.location.href = '/api/checkout?plan=' + encodeURIComponent(selectedPlan) + '&locale=' + encodeURIComponent(currentLocale);
           });
       }
-      function runAnalyzeRequest(inputText, checkoutSessionId) {
+      function runAnalyzeRequest(inputText, checkoutSessionId, analyzeRequestId) {
         if (!inputText) return Promise.resolve();
         if (!analyzeBtn) return Promise.resolve();
         analyzeBtn.disabled = true;
         if (analyzeStatus) analyzeStatus.textContent = t('statusAnalyzing', 'Analyzing…');
         pulseReportScarab();
-        var body = { inputText: inputText, locale: locale };
+        var body = {
+          inputText: inputText,
+          locale: locale,
+          kairosUserId: getKairosUserId(),
+          analyzeRequestId: analyzeRequestId || newAnalyzeRequestId(),
+        };
         if (checkoutSessionId) body.checkoutSessionId = checkoutSessionId;
         return fetch('/api/analyze', {
           method: 'POST',
@@ -533,8 +604,23 @@
             });
           })
           .then(function (payload) {
+            if (typeof payload.creditsRemaining === 'number') {
+              window.kairosCreditsBalance = payload.creditsRemaining;
+              updateCreditsBanner();
+            }
             renderAnalyzeResult(payload);
-            if (analyzeStatus) analyzeStatus.textContent = t('statusAnalyzed', 'Done.');
+            if (analyzeStatus) {
+              if (payload.purchaseRequired) {
+                analyzeStatus.textContent = t('creditsExhausted', 'No analyses left. Please purchase a plan.');
+              } else if (typeof payload.creditsRemaining === 'number') {
+                analyzeStatus.textContent = formatCreditsTemplate(
+                  t('statusAnalyzedWithCredits', 'Done. Remaining: {n}'),
+                  payload.creditsRemaining,
+                );
+              } else {
+                analyzeStatus.textContent = t('statusAnalyzed', 'Done.');
+              }
+            }
           })
           .catch(function (e) {
             if (analyzeStatus) analyzeStatus.textContent = t('errorPrefix', 'Error: ') + (e.message || 'failed');
@@ -551,7 +637,7 @@
           if (analyzeStatus) analyzeStatus.textContent = t('errorPrefix', 'Error: ') + 'missing session_id';
           return;
         }
-        runAnalyzeRequest(inputText.trim(), sessionId).then(function () {
+        runAnalyzeRequest(inputText.trim(), sessionId, newAnalyzeRequestId()).then(function () {
           try { sessionStorage.removeItem('kairos_pending_input'); } catch (_) {}
           if (window.history && window.history.replaceState) {
             window.history.replaceState({}, '', window.location.pathname);
@@ -593,7 +679,9 @@
           if (omenLeak) omenLeak.textContent = '';
           setSealedVisual(true);
           if (sealBanner) {
-            sealBanner.textContent = t('sealBannerLocked', '決済完了後に詳細レポートが解禁されます。');
+            sealBanner.textContent = data.purchaseRequired
+              ? t('creditsExhausted', 'No analyses left. Please purchase a plan to continue.')
+              : t('sealBannerLocked', 'Complete payment to unlock the full report.');
             sealBanner.classList.remove('hidden');
           }
           if (sealOverlay) { sealOverlay.classList.remove('hidden'); sealOverlay.classList.add('flex'); }
@@ -621,9 +709,14 @@
         function run() {
           var inputText = ((pasteInput && pasteInput.value) || '').trim();
           if (!inputText) { if (analyzeStatus) analyzeStatus.textContent = t('errorNoInput', 'Add input.'); return; }
-          try { sessionStorage.setItem('kairos_pending_input', inputText); } catch (_) {}
-          try { sessionStorage.setItem('kairos_locale', locale); } catch (_) {}
-          goToStripeCheckout(getSelectedPlan(), inputText);
+          refreshCredits().then(function () {
+            if ((window.kairosCreditsBalance || 0) > 0) {
+              return runAnalyzeRequest(inputText, null, newAnalyzeRequestId());
+            }
+            try { sessionStorage.setItem('kairos_pending_input', inputText); } catch (_) {}
+            try { sessionStorage.setItem('kairos_locale', locale); } catch (_) {}
+            goToStripeCheckout(getSelectedPlan(), inputText);
+          });
         }
         if (copy) run(); else initLocale().then(run);
       });
@@ -660,6 +753,9 @@
           var picker = document.getElementById('locale-picker');
           if (picker) picker.addEventListener('change', function () { onLocaleChange(picker.value); });
           if (status) status.textContent = t('statusAwaiting', 'Awaiting signal…');
+          return refreshCredits();
+        })
+        .then(function () {
           runPendingAnalyzeAfterCheckout();
         })
         .catch(function () {

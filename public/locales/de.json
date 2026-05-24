@@ -35,5 +35,8 @@
   "decoupleCta": "Analyse-Entkopplung (ab 300 JPY)",
   "decoupleHint": "Nach erfolgreicher Zahlung die Analytik auf dieser Seite erneut ausführen, um den vollen Text zu sehen.",
   "sealBannerLocked": "Schließen Sie die Zahlung ab, um den vollständigen Tiefenpsychologie-Bericht freizuschalten.",
+  "creditsRemaining": "Verbleibende Analysen: {n}",
+  "creditsExhausted": "Keine Analysen mehr übrig. Bitte kaufen Sie ein Paket.",
+  "statusAnalyzedWithCredits": "Fertig. Verbleibend: {n}",
   "streamDemo": "SSE-Stream (Demo)"
 }

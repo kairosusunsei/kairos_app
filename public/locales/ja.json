@@ -35,5 +35,8 @@
   "decoupleCta": "解析解禁（300円〜）",
   "decoupleHint": "決済完了後、このページで再度「行動分析を実行」を押すと全文が表示されます。",
   "sealBannerLocked": "決済完了後に詳細レポートが解禁されます。",
+  "creditsRemaining": "残り解析回数: {n} 回",
+  "creditsExhausted": "利用回数がありません。プランを購入して解析を続けてください。",
+  "statusAnalyzedWithCredits": "解析完了。残り {n} 回",
   "streamDemo": "SSE ストリーム（デモ）"
 }

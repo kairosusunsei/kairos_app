@@ -35,5 +35,8 @@
   "decoupleCta": "Analysis decoupling (from ¥300)",
   "decoupleHint": "After payment succeeds, run behavioral analytics again on this page to reveal full text.",
   "sealBannerLocked": "Complete payment to unlock the full deep psychology report.",
+  "creditsRemaining": "Remaining analyses: {n}",
+  "creditsExhausted": "No analyses left. Please purchase a plan to continue.",
+  "statusAnalyzedWithCredits": "Done. Remaining: {n}",
   "streamDemo": "SSE stream (demo)"
 }

@@ -19,6 +19,7 @@ const { claimStripeWebhookEvent } = require(path.join(__dirname, '..', 'lib', 'w
 const kairosTransactions = require(path.join(__dirname, '..', 'lib', 'kairos-transactions.js'));
 const checkoutPending = require(path.join(__dirname, '..', 'lib', 'checkout-pending.js'));
 const kairosLocale = require(path.join(__dirname, '..', 'lib', 'kairos-locale.js'));
+const kairosCredits = require(path.join(__dirname, '..', 'lib', 'kairos-credits.js'));
 const {
   buildPaymentRequiredPayload,
   encodePaymentRequiredHeader,
@@ -64,30 +65,66 @@ const FULL_CHAR_LIMIT = 300;
  * Stripe Checkout セッションが決済済みか検証（Webhook 未到着の race も API 照会で吸収）。
  * @returns {Promise<object|null>}
  */
-async function verifyCheckoutSessionPaid(sessionId) {
+async function retrievePaidCheckoutSession(sessionId) {
   if (!sessionId || typeof sessionId !== 'string' || !sessionId.startsWith('cs_')) {
     return null;
   }
-
-  if (kairosTransactions.isPaid(sessionId)) {
-    return kairosTransactions.getPaidSession(sessionId);
-  }
-
   if (!stripe) return null;
-
   try {
     const session = await stripe.checkout.sessions.retrieve(sessionId);
-    if (session.payment_status === 'paid') {
-      return kairosTransactions.recordPaidSession(session);
+    if (session.payment_status !== 'paid') {
+      console.log('[retrievePaidCheckoutSession] unpaid', {
+        sessionId,
+        paymentStatus: session.payment_status,
+      });
+      return null;
     }
-    console.log('[verifyCheckoutSessionPaid] unpaid session', {
-      sessionId,
-      paymentStatus: session.payment_status,
-    });
+    return session;
   } catch (err) {
-    console.error('[verifyCheckoutSessionPaid]', err.message);
+    console.error('[retrievePaidCheckoutSession]', err.message);
+    return null;
   }
-  return null;
+}
+
+/**
+ * 決済済みセッションを記録し、プランに応じたクレジットを必ず付与（Webhook 未到着の保険）。
+ */
+async function syncPaidSessionAndCredits(sessionId) {
+  const session = await retrievePaidCheckoutSession(sessionId);
+  if (!session) return { paidRecord: null, grant: null, session: null };
+
+  const paidRecord = kairosTransactions.recordPaidSession(session);
+  const grant = kairosCredits.grantFromCheckoutSession(session);
+  return { paidRecord, grant, session };
+}
+
+async function verifyCheckoutSessionPaid(sessionId) {
+  const synced = await syncPaidSessionAndCredits(sessionId);
+  return synced.paidRecord;
+}
+
+async function resolveAnalyzeAccess({ kairosUserId, checkoutSessionId }) {
+  let uid = kairosCredits.normalizeUserId(kairosUserId);
+  let grant = null;
+  let paidRecord = null;
+
+  if (checkoutSessionId) {
+    const synced = await syncPaidSessionAndCredits(checkoutSessionId);
+    paidRecord = synced.paidRecord;
+    grant = synced.grant;
+    if (!uid && synced.session && synced.session.metadata) {
+      uid = kairosCredits.normalizeUserId(synced.session.metadata.kairosUserId);
+    }
+  }
+
+  const balance = uid ? kairosCredits.getBalance(uid) : 0;
+  return {
+    kairosUserId: uid,
+    balance,
+    canFull: balance > 0,
+    paidRecord,
+    grant,
+  };
 }
 
 /**
@@ -162,12 +199,16 @@ app.post(
       });
 
       const recorded = kairosTransactions.recordPaidSession(session);
+      const creditGrant = kairosCredits.grantFromCheckoutSession(session);
       if (recorded) {
         console.log('[Webhook] kairos_transactions recorded', {
           sessionId: recorded.sessionId,
           plan: recorded.plan,
           paidAt: recorded.paidAt,
         });
+      }
+      if (creditGrant.granted) {
+        console.log('[Webhook] kairos_credits granted', creditGrant);
       }
 
       if (userId && process.env.GEMINI_API_KEY) {
@@ -360,9 +401,10 @@ function clampWarmScore(value) {
   return Math.min(99, Math.max(77, Math.round(n)));
 }
 
-function formatAnalyzePayload(raw, accessTier) {
+function formatAnalyzePayload(raw, accessTier, extras) {
   const tier = accessTier === 'full' ? 'full' : 'teaser';
   const charLimit = tier === 'full' ? FULL_CHAR_LIMIT : TEASER_CHAR_LIMIT;
+  const meta = extras || {};
 
   const thoughtResonanceVector = truncateText(
     raw.thoughtResonanceVector || raw.vector || '',
@@ -375,6 +417,9 @@ function formatAnalyzePayload(raw, accessTier) {
     success: true,
     accessTier: tier,
     locked: tier !== 'full',
+    creditsRemaining: meta.creditsRemaining != null ? meta.creditsRemaining : undefined,
+    creditsExhausted: !!meta.creditsExhausted,
+    purchaseRequired: !!meta.purchaseRequired,
     synchronicityScore: clampWarmScore(
       raw.synchronicityScore != null ? raw.synchronicityScore : raw.score,
     ),
@@ -394,9 +439,13 @@ function formatAnalyzePayload(raw, accessTier) {
   };
 }
 
-function warmAnalyzeFallback(locale, accessTier) {
+function warmAnalyzeFallback(locale, accessTier, extras) {
   const tier = accessTier === 'full' ? 'full' : 'teaser';
-  const payload = formatAnalyzePayload(kairosLocale.getWarmFallbackPayload(locale), tier);
+  const payload = formatAnalyzePayload(
+    kairosLocale.getWarmFallbackPayload(locale),
+    tier,
+    extras,
+  );
   payload.locale = kairosLocale.normalizeLocale(locale);
   return payload;
 }
@@ -406,23 +455,60 @@ app.post('/api/analyze', async (req, res) => {
   const checkoutSessionId = String(
     (req.body && (req.body.checkoutSessionId || req.body.session_id)) || '',
   ).trim();
+  const kairosUserId = String((req.body && req.body.kairosUserId) || '').trim();
+  const analyzeRequestId = String((req.body && req.body.analyzeRequestId) || '').trim();
 
-  const paidRecord = checkoutSessionId
-    ? await verifyCheckoutSessionPaid(checkoutSessionId)
-    : null;
-  const accessTier = paidRecord ? 'full' : 'teaser';
+  const access = await resolveAnalyzeAccess({ kairosUserId, checkoutSessionId });
+  const accessTier = access.canFull ? 'full' : 'teaser';
+  const responseExtras = {
+    creditsRemaining: access.balance,
+    creditsExhausted: !access.canFull,
+    purchaseRequired: !access.canFull,
+  };
 
   let userInput =
     (req.body && (req.body.userInput || req.body.inputText)) || '';
   userInput = String(userInput).trim();
-  if (!userInput && paidRecord && checkoutSessionId) {
+  if (!userInput && checkoutSessionId) {
     const recovered = await resolveInputFromCheckoutSession(checkoutSessionId);
     if (recovered) userInput = recovered;
   }
   if (!userInput) userInput = kairosLocale.getDefaultUserInput(locale);
 
+  if (!access.canFull) {
+    const fb = warmAnalyzeFallback(locale, 'teaser', {
+      creditsRemaining: 0,
+      creditsExhausted: true,
+      purchaseRequired: true,
+    });
+    fb.locale = kairosLocale.normalizeLocale(locale);
+    if (access.kairosUserId) fb.kairosUserId = access.kairosUserId;
+    return res.status(200).json(fb);
+  }
+
   if (!process.env.GEMINI_API_KEY) {
-    const fb = warmAnalyzeFallback(locale, accessTier);
+    const consumeKey = kairosCredits.buildConsumeKey(
+      access.kairosUserId,
+      checkoutSessionId,
+      analyzeRequestId,
+    );
+    const consumed = kairosCredits.tryConsumeCredit(access.kairosUserId, consumeKey);
+    if (!consumed.ok) {
+      const fb = warmAnalyzeFallback(locale, 'teaser', {
+        creditsRemaining: consumed.balance,
+        creditsExhausted: true,
+        purchaseRequired: true,
+      });
+      fb.locale = kairosLocale.normalizeLocale(locale);
+      return res.status(200).json(fb);
+    }
+    const fb = warmAnalyzeFallback(locale, 'full', {
+      creditsRemaining: consumed.balance,
+      creditsExhausted: consumed.balance <= 0,
+      purchaseRequired: false,
+    });
+    fb.locale = kairosLocale.normalizeLocale(locale);
+    if (access.kairosUserId) fb.kairosUserId = access.kairosUserId;
     return res.status(200).json(fb);
   }
 
@@ -488,16 +574,39 @@ ${charLimitsBlock}
     });
 
     const resultData = JSON.parse(response.text);
-    const payload = formatAnalyzePayload(resultData, accessTier);
+
+    const consumeKey = kairosCredits.buildConsumeKey(
+      access.kairosUserId,
+      checkoutSessionId,
+      analyzeRequestId,
+    );
+    const consumed = kairosCredits.tryConsumeCredit(access.kairosUserId, consumeKey);
+    if (!consumed.ok) {
+      const fb = warmAnalyzeFallback(locale, 'teaser', {
+        creditsRemaining: consumed.balance,
+        creditsExhausted: true,
+        purchaseRequired: true,
+      });
+      fb.locale = kairosLocale.normalizeLocale(locale);
+      return res.status(200).json(fb);
+    }
+
+    const payload = formatAnalyzePayload(resultData, 'full', {
+      creditsRemaining: consumed.balance,
+      creditsExhausted: consumed.balance <= 0,
+      purchaseRequired: false,
+    });
     payload.locale = kairosLocale.normalizeLocale(locale);
-    if (paidRecord) {
-      payload.checkoutSessionId = paidRecord.sessionId;
-      payload.paidAt = paidRecord.paidAt;
+    if (access.kairosUserId) payload.kairosUserId = access.kairosUserId;
+    if (access.paidRecord) {
+      payload.checkoutSessionId = access.paidRecord.sessionId;
+      payload.paidAt = access.paidRecord.paidAt;
     }
     return res.status(200).json(payload);
   } catch (error) {
     console.error('KAIROS API Error:', error);
-    const fb = warmAnalyzeFallback(locale, accessTier);
+    const fb = warmAnalyzeFallback(locale, accessTier, responseExtras);
+    fb.locale = kairosLocale.normalizeLocale(locale);
     return res.status(200).json(fb);
   }
 });
@@ -507,20 +616,43 @@ ${charLimitsBlock}
  */
 app.get('/api/unseal', async (req, res) => {
   const sessionId = String(req.query.session_id || req.query.checkoutSessionId || '').trim();
-  const paidRecord = await verifyCheckoutSessionPaid(sessionId);
-  if (!paidRecord) {
+  const kairosUserId = String(req.query.kairosUserId || '').trim();
+  const access = await resolveAnalyzeAccess({ kairosUserId, checkoutSessionId: sessionId });
+
+  if (!access.canFull) {
     return res.status(402).json({
       success: false,
       error: 'payment_required',
       accessTier: 'teaser',
+      creditsRemaining: access.balance,
+      creditsExhausted: true,
+      purchaseRequired: true,
     });
   }
   return res.status(200).json({
     success: true,
     accessTier: 'full',
-    checkoutSessionId: paidRecord.sessionId,
-    plan: paidRecord.plan,
-    paidAt: paidRecord.paidAt,
+    checkoutSessionId: access.paidRecord && access.paidRecord.sessionId,
+    plan: access.paidRecord && access.paidRecord.plan,
+    paidAt: access.paidRecord && access.paidRecord.paidAt,
+    creditsRemaining: access.balance,
+    kairosUserId: access.kairosUserId,
+    grant: access.grant,
+  });
+});
+
+app.get('/api/credits', (req, res) => {
+  const kairosUserId = String(req.query.kairosUserId || '').trim();
+  const uid = kairosCredits.normalizeUserId(kairosUserId);
+  if (!uid) {
+    return res.status(400).json({ error: 'invalid_kairos_user_id' });
+  }
+  const balance = kairosCredits.getBalance(uid);
+  return res.status(200).json({
+    success: true,
+    kairosUserId: uid,
+    creditsRemaining: balance,
+    canAnalyze: balance > 0,
   });
 });
 
@@ -553,7 +685,7 @@ function resolveCheckoutPlan(plan) {
   return null;
 }
 
-async function createCheckoutSessionAndRedirect(res, { plan, locale, inputText }) {
+async function createCheckoutSessionAndRedirect(res, { plan, locale, inputText, kairosUserId }) {
   if (!stripe || !process.env.STRIPE_SECRET_KEY) {
     console.error('Stripe Checkout Error: STRIPE_SECRET_KEY is not configured');
     return res.status(503).send('Stripe Gateway Connection Error');
@@ -580,7 +712,9 @@ async function createCheckoutSessionAndRedirect(res, { plan, locale, inputText }
     metadata: {
       plan: String(plan),
       inputText: String(inputText || '').slice(0, 500),
+      kairosUserId: String(kairosUserId || '').slice(0, 128),
     },
+    client_reference_id: String(kairosUserId || '').slice(0, 200) || undefined,
     success_url: 'https://get-kairos.online/success?session_id={CHECKOUT_SESSION_ID}',
     cancel_url: 'https://get-kairos.online/canceled',
   });
@@ -600,10 +734,14 @@ app.post('/api/checkout/prepare', (req, res) => {
     req.headers['accept-language'],
   );
   const inputText = (req.body && (req.body.inputText || req.body.userInput)) || '';
+  const kairosUserId = String((req.body && req.body.kairosUserId) || '').trim();
+  if (!kairosCredits.normalizeUserId(kairosUserId)) {
+    return res.status(400).json({ error: 'invalid_kairos_user_id' });
+  }
   if (!resolveCheckoutPlan(plan)) {
     return res.status(400).json({ error: 'invalid_plan' });
   }
-  const prepareId = checkoutPending.createPending({ plan, locale, inputText });
+  const prepareId = checkoutPending.createPending({ plan, locale, inputText, kairosUserId });
   return res.status(200).json({ prepareId });
 });
 
@@ -612,6 +750,7 @@ app.get('/api/checkout', async (req, res) => {
     let plan = req.query.plan;
     let locale = req.query.locale;
     let inputText = '';
+    let kairosUserId = '';
 
     const prepareId = req.query.prepareId;
     if (prepareId) {
@@ -622,12 +761,14 @@ app.get('/api/checkout', async (req, res) => {
       plan = pending.plan;
       locale = pending.locale;
       inputText = pending.inputText;
+      kairosUserId = pending.kairosUserId || '';
     }
 
     return await createCheckoutSessionAndRedirect(res, {
       plan: plan || 'single',
       locale: locale || 'ja',
       inputText,
+      kairosUserId,
     });
   } catch (error) {
     console.error('Stripe Checkout Error:', error.message);

@@ -161,7 +161,9 @@
 | `/api/unseal` | **実装済（最小）** — `GET /api/unseal?session_id=` で決済検証 |
 | teaser/full 分離 | **実装済（最小）** — 未決済: 100 文字ティザー / 決済済み `checkoutSessionId`: 300 文字フル |
 | 画像マルチモーダル解析 | 未実装 |
-| 回数券・サブスク DB 連動 | 未実装（Webhook は `kairos_transactions` に記録のみ） |
+| 5回セットクレジット | **実装済（最小）** — `lib/kairos-credits.js`：bundle=5回、single=1回。`kairos_user_id` で台帳管理 |
+| 回数券・サブスク DB 永続化 | 未実装（インメモリ。Vercel cold start でリセットの可能性あり） |
+| 月額サブスク利用期限 | 未実装 |
 | PostgreSQL 本番 | `DATABASE_URL` 未設定時は in-memory |
 | Pay-Per-Crawl / Cloudflare AI Crawl | 未実装 |
 | `ai.txt` / `llms.txt` | 未実装 |

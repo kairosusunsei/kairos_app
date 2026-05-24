@@ -35,5 +35,8 @@
   "decoupleCta": "Desacoplamento da análise (a partir de 300 JPY)",
   "decoupleHint": "Após o pagamento, execute novamente a análise nesta página para ver o texto completo.",
   "sealBannerLocked": "Conclua o pagamento para desbloquear o relatório psicológico completo.",
+  "creditsRemaining": "Análises restantes: {n}",
+  "creditsExhausted": "Sem análises restantes. Compre um plano para continuar.",
+  "statusAnalyzedWithCredits": "Concluído. Restantes: {n}",
   "streamDemo": "Fluxo SSE (demo)"
 }
