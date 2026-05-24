@@ -37,6 +37,7 @@
   "sealBannerLocked": "Complete payment to unlock the full deep psychology report.",
   "creditsRemaining": "Remaining analyses: {n}",
   "creditsExhausted": "No analyses left. Please purchase a plan to continue.",
+  "checkoutPlanUnavailable": "This plan is temporarily unavailable. Please use the ¥300 single plan.",
   "statusAnalyzedWithCredits": "Done. Remaining: {n}",
   "streamDemo": "SSE stream (demo)"
 }

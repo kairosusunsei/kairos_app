@@ -37,6 +37,7 @@
   "sealBannerLocked": "決済完了後に詳細レポートが解禁されます。",
   "creditsRemaining": "残り解析回数: {n} 回",
   "creditsExhausted": "利用回数がありません。プランを購入して解析を続けてください。",
+  "checkoutPlanUnavailable": "このプランは現在ご利用いただけません。都度300円プランをお選びください。",
   "statusAnalyzedWithCredits": "解析完了。残り {n} 回",
   "streamDemo": "SSE ストリーム（デモ）"
 }

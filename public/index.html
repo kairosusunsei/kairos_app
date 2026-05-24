@@ -413,6 +413,47 @@
       var locale = resolveLocale();
       var copy = null;
       window.kairosCreditsBalance = 0;
+      window.checkoutPlanHealth = { single: true, bundle: false, subscription: false };
+
+      function applyCheckoutPlanHealth(health) {
+        if (!health || !health.plans) return;
+        var p = health.plans;
+        window.checkoutPlanHealth = {
+          single: !!(p.single && p.single.ok),
+          bundle: !!(p.bundle && p.bundle.ok),
+          subscription: !!(p.subscription && p.subscription.ok),
+        };
+        var labels = document.querySelectorAll('#plan-picker label.plan-option');
+        for (var i = 0; i < labels.length; i++) {
+          var input = labels[i].querySelector('input[name="billing-plan"]');
+          if (!input) continue;
+          var plan = input.value;
+          var enabled = window.checkoutPlanHealth[plan];
+          labels[i].classList.toggle('opacity-40', !enabled);
+          labels[i].classList.toggle('pointer-events-none', !enabled);
+          input.disabled = !enabled;
+        }
+        var firstOk = document.querySelector(
+          '#plan-picker input[name="billing-plan"]:not(:disabled)',
+        );
+        if (firstOk) firstOk.checked = true;
+      }
+
+      function refreshCheckoutPlanHealth() {
+        return fetch('/api/checkout-health', { cache: 'no-store' })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            applyCheckoutPlanHealth(data);
+            if (data && data.plans && data.plans.bundle && !data.plans.bundle.ok) {
+              console.warn('[KAIROS] bundle checkout unavailable', data.plans.bundle);
+            }
+            return data;
+          })
+          .catch(function () {
+            window.checkoutPlanHealth = { single: true, bundle: false, subscription: false };
+            applyCheckoutPlanHealth(null);
+          });
+      }
 
       function getKairosUserId() {
         var key = 'kairos_user_id';
@@ -553,8 +594,10 @@
       }
       document.getElementById('file-pick-label') && document.getElementById('file-pick-label').addEventListener('click', function (e) { e.stopPropagation(); });
       function getSelectedPlan() {
-        var picked = document.querySelector('input[name="billing-plan"]:checked');
-        return (picked && picked.value) || 'single';
+        var picked = document.querySelector('input[name="billing-plan"]:checked:not(:disabled)');
+        if (picked) return picked.value;
+        var fallback = document.querySelector('input[name="billing-plan"]:not(:disabled)');
+        return (fallback && fallback.value) || 'single';
       }
       function goToStripeCheckout(plan, inputText) {
         var currentLocale = document.documentElement.lang || 'ja';
@@ -709,13 +752,20 @@
         function run() {
           var inputText = ((pasteInput && pasteInput.value) || '').trim();
           if (!inputText) { if (analyzeStatus) analyzeStatus.textContent = t('errorNoInput', 'Add input.'); return; }
-          refreshCredits().then(function () {
+          Promise.all([refreshCredits(), refreshCheckoutPlanHealth()]).then(function () {
             if ((window.kairosCreditsBalance || 0) > 0) {
               return runAnalyzeRequest(inputText, null, newAnalyzeRequestId());
             }
+            var plan = getSelectedPlan();
+            if (!window.checkoutPlanHealth[plan]) {
+              if (analyzeStatus) {
+                analyzeStatus.textContent = t('checkoutPlanUnavailable', 'This plan is temporarily unavailable. Please choose ¥300 single.');
+              }
+              return;
+            }
             try { sessionStorage.setItem('kairos_pending_input', inputText); } catch (_) {}
             try { sessionStorage.setItem('kairos_locale', locale); } catch (_) {}
-            goToStripeCheckout(getSelectedPlan(), inputText);
+            goToStripeCheckout(plan, inputText);
           });
         }
         if (copy) run(); else initLocale().then(run);
@@ -753,7 +803,7 @@
           var picker = document.getElementById('locale-picker');
           if (picker) picker.addEventListener('change', function () { onLocaleChange(picker.value); });
           if (status) status.textContent = t('statusAwaiting', 'Awaiting signal…');
-          return refreshCredits();
+          return Promise.all([refreshCredits(), refreshCheckoutPlanHealth()]);
         })
         .then(function () {
           runPendingAnalyzeAfterCheckout();
