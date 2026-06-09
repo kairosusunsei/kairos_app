@@ -1,1 +1,10 @@
 .vercel
+reports/
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+deploy.local.json
+*.pem
+*.key

@@ -20,6 +20,7 @@ const kairosTransactions = require(path.join(__dirname, '..', 'lib', 'kairos-tra
 const checkoutPending = require(path.join(__dirname, '..', 'lib', 'checkout-pending.js'));
 const kairosLocale = require(path.join(__dirname, '..', 'lib', 'kairos-locale.js'));
 const kairosCredits = require(path.join(__dirname, '..', 'lib', 'kairos-credits.js'));
+kairosCredits.setStripeClient(stripe);
 const {
   buildPaymentRequiredPayload,
   encodePaymentRequiredHeader,
@@ -27,10 +28,49 @@ const {
   extractStripePaymentIntentId,
 } = require(path.join(__dirname, '..', 'lib', 'x402-stripe-bridge.js'));
 const { logAnalysisDecouplingStream } = require(path.join(__dirname, '..', 'lib', 'analysis-decoupling.js'));
+const shareCard = require(path.join(__dirname, '..', 'lib', 'share-card.js'));
+const referralAttribution = require(path.join(__dirname, '..', 'lib', 'referral-attribution.js'));
+const referralRewards = require(path.join(__dirname, '..', 'lib', 'referral-rewards.js'));
+const socialImage = require(path.join(__dirname, '..', 'lib', 'social-image.js'));
+const ogCard = require(path.join(__dirname, '..', 'lib', 'og-card.js'));
+const rasterizeSvg = require(path.join(__dirname, '..', 'lib', 'rasterize-svg.js'));
+const xDmScout = require(path.join(__dirname, '..', 'lib', 'x-dm-scout.js'));
+const rateLimit = require(path.join(__dirname, '..', 'lib', 'rate-limit.js'));
 
 const app = express();
 
 const geo = require(path.join(__dirname, '..', 'lib', 'geo-block.js'));
+
+const ANALYZE_RATE_LIMIT = Number(process.env.KAIROS_ANALYZE_RATE_LIMIT) || 30;
+const ANALYZE_RATE_WINDOW_MS = Number(process.env.KAIROS_ANALYZE_RATE_WINDOW_MS) || 15 * 60 * 1000;
+const GEMINI_STREAM_RATE_LIMIT = Number(process.env.KAIROS_GEMINI_STREAM_RATE_LIMIT) || 10;
+const GEMINI_STREAM_RATE_WINDOW_MS =
+  Number(process.env.KAIROS_GEMINI_STREAM_RATE_WINDOW_MS) || 60 * 60 * 1000;
+
+async function enforceApiRateLimit(req, res, { scope, limit, windowMs, format }) {
+  const ip = rateLimit.clientIp(req);
+  const result = await rateLimit.checkRateLimit({
+    key: `${scope}:${ip}`,
+    limit,
+    windowMs,
+  });
+  if (!result.allowed) {
+    const retryAfterSec = Math.max(1, Math.ceil(result.retryAfterMs / 1000));
+    res.set('Retry-After', String(retryAfterSec));
+    if (format === 'sse') {
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.status(429);
+      res.write(`data: ${JSON.stringify({ error: 'rate_limit_exceeded', retryAfterSec })}\n\n`);
+      res.end();
+    } else {
+      res.status(429).json({ error: 'rate_limit_exceeded', retryAfterSec });
+    }
+    return false;
+  }
+  res.set('X-RateLimit-Remaining', String(result.remaining));
+  return true;
+}
 
 /** Vercel `x-vercel-ip-country` による物理ガード（CN / HK / MO）。middleware.ts と二重化。 */
 app.use((req, res, next) => {
@@ -60,6 +100,11 @@ const pricingEngine = new PricingEngine();
 
 const TEASER_CHAR_LIMIT = 100;
 const FULL_CHAR_LIMIT = 300;
+
+/** 月額サブスクは権利ロジック未実装のため、明示的に true になるまで Checkout 不可 */
+function isSubscriptionLaunchEnabled() {
+  return process.env.KAIROS_SUBSCRIPTION_ENABLED === 'true';
+}
 
 /**
  * Stripe Checkout セッションが決済済みか検証（Webhook 未到着の race も API 照会で吸収）。
@@ -94,7 +139,16 @@ async function syncPaidSessionAndCredits(sessionId) {
   if (!session) return { paidRecord: null, grant: null, session: null };
 
   const paidRecord = kairosTransactions.recordPaidSession(session);
-  const grant = kairosCredits.grantFromCheckoutSession(session);
+  const grant = await kairosCredits.grantFromCheckoutSession(session);
+  const refCode = session.metadata && session.metadata.referralCode;
+  if (refCode && session.payment_status === 'paid') {
+    await referralAttribution.recordConversion(refCode, {
+      amountJpy: session.amount_total || 0,
+      plan: session.metadata && session.metadata.plan,
+      sessionId: session.id,
+    });
+    await referralRewards.processReferralReward(stripe, session);
+  }
   return { paidRecord, grant, session };
 }
 
@@ -107,23 +161,37 @@ async function resolveAnalyzeAccess({ kairosUserId, checkoutSessionId }) {
   let uid = kairosCredits.normalizeUserId(kairosUserId);
   let grant = null;
   let paidRecord = null;
+  let sessionUserMismatch = false;
 
   if (checkoutSessionId) {
     const synced = await syncPaidSessionAndCredits(checkoutSessionId);
-    paidRecord = synced.paidRecord;
     grant = synced.grant;
-    if (!uid && synced.session && synced.session.metadata) {
-      uid = kairosCredits.normalizeUserId(synced.session.metadata.kairosUserId);
+    if (synced.session) {
+      const sessionUid =
+        kairosCredits.normalizeUserId(synced.session.metadata && synced.session.metadata.kairosUserId) ||
+        kairosCredits.normalizeUserId(synced.session.client_reference_id);
+      if (sessionUid) {
+        if (!uid) {
+          sessionUserMismatch = true;
+        } else if (uid !== sessionUid) {
+          sessionUserMismatch = true;
+          uid = null;
+        }
+      }
+      if (!sessionUserMismatch && uid) {
+        paidRecord = synced.paidRecord;
+      }
     }
   }
 
-  const balance = uid ? kairosCredits.getBalance(uid) : 0;
+  const balance = uid ? await kairosCredits.getBalance(uid) : 0;
   return {
     kairosUserId: uid,
     balance,
-    canFull: balance > 0,
+    canFull: balance > 0 && !sessionUserMismatch,
     paidRecord,
     grant,
+    sessionUserMismatch,
   };
 }
 
@@ -199,7 +267,7 @@ app.post(
       });
 
       const recorded = kairosTransactions.recordPaidSession(session);
-      const creditGrant = kairosCredits.grantFromCheckoutSession(session);
+      const creditGrant = await kairosCredits.grantFromCheckoutSession(session);
       if (recorded) {
         console.log('[Webhook] kairos_transactions recorded', {
           sessionId: recorded.sessionId,
@@ -209,6 +277,19 @@ app.post(
       }
       if (creditGrant.granted) {
         console.log('[Webhook] kairos_credits granted', creditGrant);
+      }
+
+      const refCode = session.metadata && session.metadata.referralCode;
+      if (refCode && session.payment_status === 'paid') {
+        await referralAttribution.recordConversion(refCode, {
+          amountJpy: session.amount_total || 0,
+          plan: session.metadata && session.metadata.plan,
+          sessionId: session.id,
+        });
+        const referralReward = await referralRewards.processReferralReward(stripe, session);
+        if (referralReward.ok) {
+          console.log('[Webhook] referral_reward', referralReward);
+        }
       }
 
       if (userId && process.env.GEMINI_API_KEY) {
@@ -331,8 +412,23 @@ app.get('/legal/tokushoho', (req, res) => {
 
 /**
  * デモ用: Gemini ストリームを SSE で返す。クライアントは受信チャンクごとに視覚フィードバック可能。
+ * 本番は同一サイト Referer 必須 + IP レート制限。KAIROS_GEMINI_STREAM_ENABLED=false で無効化可。
  */
 app.get('/api/gemini-stream', async (req, res) => {
+  if (process.env.KAIROS_GEMINI_STREAM_ENABLED === 'false') {
+    return res.status(404).json({ error: 'not_found' });
+  }
+  if (process.env.VERCEL_ENV === 'production' && !rateLimit.isSameSiteReferer(req)) {
+    return res.status(403).json({ error: 'forbidden' });
+  }
+  const allowed = await enforceApiRateLimit(req, res, {
+    scope: 'gemini-stream',
+    limit: GEMINI_STREAM_RATE_LIMIT,
+    windowMs: GEMINI_STREAM_RATE_WINDOW_MS,
+    format: 'sse',
+  });
+  if (!allowed) return;
+
   if (!process.env.GEMINI_API_KEY) {
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
@@ -401,6 +497,26 @@ function clampWarmScore(value) {
   return Math.min(99, Math.max(77, Math.round(n)));
 }
 
+function parseGeminiJson(raw) {
+  let s = String(raw || '').trim();
+  if (!s) throw new Error('empty_model_response');
+  const fenced = s.match(/^```(?:json)?\s*([\s\S]*?)```$/i);
+  if (fenced) s = fenced[1].trim();
+  return JSON.parse(s);
+}
+
+function matchesWarmFallback(locale, resultData) {
+  const warm = kairosLocale.getWarmFallbackPayload(locale);
+  const vec = String(resultData.thoughtResonanceVector || '').trim();
+  const mind = String(resultData.mindTuning || '').trim();
+  const deep = String(resultData.deepSynchronicity || '').trim();
+  return (
+    vec === warm.thoughtResonanceVector &&
+    mind === warm.mindTuning &&
+    deep === warm.deepSynchronicity
+  );
+}
+
 function formatAnalyzePayload(raw, accessTier, extras) {
   const tier = accessTier === 'full' ? 'full' : 'teaser';
   const charLimit = tier === 'full' ? FULL_CHAR_LIMIT : TEASER_CHAR_LIMIT;
@@ -413,10 +529,11 @@ function formatAnalyzePayload(raw, accessTier, extras) {
   const mindTuningFull = String(raw.mindTuning || raw.advice || '').trim();
   const deepFull = String(raw.deepSynchronicity || raw.correlation || '').trim();
 
-  return {
+  const out = {
     success: true,
     accessTier: tier,
     locked: tier !== 'full',
+    generatedBy: meta.generatedBy || 'gemini',
     creditsRemaining: meta.creditsRemaining != null ? meta.creditsRemaining : undefined,
     creditsExhausted: !!meta.creditsExhausted,
     purchaseRequired: !!meta.purchaseRequired,
@@ -437,6 +554,9 @@ function formatAnalyzePayload(raw, accessTier, extras) {
         ? truncateText(mindTuningFull || deepFull, TEASER_CHAR_LIMIT)
         : null,
   };
+  if (meta.inputEcho) out.inputEcho = meta.inputEcho;
+  if (meta.fallbackReason) out.fallbackReason = meta.fallbackReason;
+  return out;
 }
 
 function warmAnalyzeFallback(locale, accessTier, extras) {
@@ -444,13 +564,20 @@ function warmAnalyzeFallback(locale, accessTier, extras) {
   const payload = formatAnalyzePayload(
     kairosLocale.getWarmFallbackPayload(locale),
     tier,
-    extras,
+    { ...extras, generatedBy: 'fallback' },
   );
   payload.locale = kairosLocale.normalizeLocale(locale);
   return payload;
 }
 
 app.post('/api/analyze', async (req, res) => {
+  const allowed = await enforceApiRateLimit(req, res, {
+    scope: 'analyze',
+    limit: ANALYZE_RATE_LIMIT,
+    windowMs: ANALYZE_RATE_WINDOW_MS,
+  });
+  if (!allowed) return;
+
   const locale = getClientLocale(req);
   const checkoutSessionId = String(
     (req.body && (req.body.checkoutSessionId || req.body.session_id)) || '',
@@ -474,6 +601,7 @@ app.post('/api/analyze', async (req, res) => {
     if (recovered) userInput = recovered;
   }
   if (!userInput) userInput = kairosLocale.getDefaultUserInput(locale);
+  const inputEcho = truncateText(userInput, 120);
 
   if (!access.canFull) {
     const fb = warmAnalyzeFallback(locale, 'teaser', {
@@ -487,29 +615,12 @@ app.post('/api/analyze', async (req, res) => {
   }
 
   if (!process.env.GEMINI_API_KEY) {
-    const consumeKey = kairosCredits.buildConsumeKey(
-      access.kairosUserId,
-      checkoutSessionId,
-      analyzeRequestId,
-    );
-    const consumed = kairosCredits.tryConsumeCredit(access.kairosUserId, consumeKey);
-    if (!consumed.ok) {
-      const fb = warmAnalyzeFallback(locale, 'teaser', {
-        creditsRemaining: consumed.balance,
-        creditsExhausted: true,
-        purchaseRequired: true,
-      });
-      fb.locale = kairosLocale.normalizeLocale(locale);
-      return res.status(200).json(fb);
-    }
-    const fb = warmAnalyzeFallback(locale, 'full', {
-      creditsRemaining: consumed.balance,
-      creditsExhausted: consumed.balance <= 0,
-      purchaseRequired: false,
+    return res.status(503).json({
+      success: false,
+      error: 'gemini_not_configured',
+      creditsRemaining: access.balance,
+      inputEcho,
     });
-    fb.locale = kairosLocale.normalizeLocale(locale);
-    if (access.kairosUserId) fb.kairosUserId = access.kairosUserId;
-    return res.status(200).json(fb);
   }
 
   const charLimitsBlock = kairosLocale.buildCharLimitsBlock(accessTier, locale);
@@ -526,6 +637,11 @@ You are strictly BANNED from using words like: "反社会的", "表象", "大衆
 Speak like a gentle, wise companion who supports self-cognition and emotional clarity.
 Reassure the user that they are doing beautifully, that their feelings matter, and that a positive inner turning point is blooming.
 
+【Input binding — mandatory】
+You MUST weave at least one concrete detail from the user's input (a named person, place, object, worry, or exact phrase they wrote) into thoughtResonanceVector and mindTuning.
+Do NOT output generic encouragement that could apply to anyone without reading their text.
+Never copy canned template sentences; every field must feel unique to this input.
+
 ${localeInstruction}
 
 【Character Limits】
@@ -535,7 +651,7 @@ ${charLimitsBlock}
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: modelId,
       config: {
         responseMimeType: 'application/json',
         responseSchema: {
@@ -566,21 +682,33 @@ ${charLimitsBlock}
             'deepSynchronicity',
           ],
         },
-        temperature: 0.85,
+        temperature: 0.72,
         maxOutputTokens: 1000,
         systemInstruction,
       },
-      contents: `The user's input: "${userInput}"`,
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              text: `Analyze ONLY this user input and respond in JSON.\n---\n${userInput}\n---`,
+            },
+          ],
+        },
+      ],
     });
 
-    const resultData = JSON.parse(response.text);
+    const resultData = parseGeminiJson(response.text);
+    if (matchesWarmFallback(locale, resultData)) {
+      throw new Error('generic_template_response');
+    }
 
     const consumeKey = kairosCredits.buildConsumeKey(
       access.kairosUserId,
       checkoutSessionId,
       analyzeRequestId,
     );
-    const consumed = kairosCredits.tryConsumeCredit(access.kairosUserId, consumeKey);
+    const consumed = await kairosCredits.tryConsumeCredit(access.kairosUserId, consumeKey);
     if (!consumed.ok) {
       const fb = warmAnalyzeFallback(locale, 'teaser', {
         creditsRemaining: consumed.balance,
@@ -595,18 +723,40 @@ ${charLimitsBlock}
       creditsRemaining: consumed.balance,
       creditsExhausted: consumed.balance <= 0,
       purchaseRequired: false,
+      generatedBy: 'gemini',
+      inputEcho,
     });
     payload.locale = kairosLocale.normalizeLocale(locale);
     if (access.kairosUserId) payload.kairosUserId = access.kairosUserId;
+    if (consumed.balance <= 0 && access.kairosUserId) {
+      const lastGrantPlan = await kairosCredits.getLastGrantPlan(access.kairosUserId);
+      if (lastGrantPlan) payload.lastGrantPlan = lastGrantPlan;
+    }
     if (access.paidRecord) {
       payload.checkoutSessionId = access.paidRecord.sessionId;
       payload.paidAt = access.paidRecord.paidAt;
     }
     return res.status(200).json(payload);
   } catch (error) {
-    console.error('KAIROS API Error:', error);
-    const fb = warmAnalyzeFallback(locale, accessTier, responseExtras);
+    console.error('[analyze] gemini_failed', {
+      message: error.message,
+      model: modelId,
+      inputEcho,
+      kairosUserId: access.kairosUserId,
+    });
+    if (access.canFull) {
+      return res.status(503).json({
+        success: false,
+        error: 'generation_failed',
+        detail: error.message,
+        creditsRemaining: access.balance,
+        inputEcho,
+      });
+    }
+    const fb = warmAnalyzeFallback(locale, 'teaser', responseExtras);
     fb.locale = kairosLocale.normalizeLocale(locale);
+    fb.inputEcho = inputEcho;
+    fb.fallbackReason = error.message;
     return res.status(200).json(fb);
   }
 });
@@ -641,19 +791,176 @@ app.get('/api/unseal', async (req, res) => {
   });
 });
 
-app.get('/api/credits', (req, res) => {
+app.get('/api/credits', async (req, res) => {
   const kairosUserId = String(req.query.kairosUserId || '').trim();
   const uid = kairosCredits.normalizeUserId(kairosUserId);
   if (!uid) {
     return res.status(400).json({ error: 'invalid_kairos_user_id' });
   }
-  const balance = kairosCredits.getBalance(uid);
+  const balance = await kairosCredits.getBalance(uid);
   return res.status(200).json({
     success: true,
     kairosUserId: uid,
     creditsRemaining: balance,
     canAnalyze: balance > 0,
   });
+});
+
+function assertAdminKey(req, res) {
+  const expected = process.env.KAIROS_ADMIN_SECRET;
+  if (!expected) {
+    res.status(503).json({ error: 'admin_not_configured' });
+    return false;
+  }
+  const provided = String(req.get('x-kairos-admin-key') || '').trim();
+  if (!provided || provided !== expected) {
+    res.status(401).json({ error: 'unauthorized' });
+    return false;
+  }
+  return true;
+}
+
+function sendShareCardSvg(req, res) {
+  const params = socialImage.parseSocialImageQuery(req.query);
+  const svg = shareCard.buildShareCardSvg(params);
+  res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  return res.status(200).send(svg);
+}
+
+function sendShareCardPng(req, res) {
+  const params = socialImage.parseSocialImageQuery(req.query);
+  const svg = shareCard.buildShareCardSvg(params);
+  const png = rasterizeSvg.rasterizeSvgToPng(svg, { width: 1080 });
+  if (!png) {
+    return res.status(503).json({
+      error: 'png_unavailable',
+      hint: 'Install @resvg/resvg-js or use client-side PNG export from SVG.',
+      svgUrl: socialImage.buildShareCardImageUrl(params, false),
+    });
+  }
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  return res.status(200).send(png);
+}
+
+function sendOgSvg(req, res) {
+  const params = socialImage.parseSocialImageQuery(req.query);
+  const svg = ogCard.buildOgCardSvg(params);
+  res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  return res.status(200).send(svg);
+}
+
+function sendOgPng(req, res) {
+  const params = socialImage.parseSocialImageQuery(req.query);
+  const svg = ogCard.buildOgCardSvg(params);
+  const png = rasterizeSvg.rasterizeSvgToPng(svg, { width: 1200 });
+  if (!png) {
+    return res.status(503).json({
+      error: 'png_unavailable',
+      hint: 'Install @resvg/resvg-js for crawler-friendly og:image PNG.',
+      svgUrl: socialImage.buildOgImageUrl(params, false),
+    });
+  }
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  return res.status(200).send(png);
+}
+
+app.get('/api/share-card', sendShareCardSvg);
+app.get('/api/share-card.png', sendShareCardPng);
+
+app.get('/api/og', sendOgSvg);
+app.get('/api/og.png', sendOgPng);
+
+app.get('/api/og/meta', (req, res) => {
+  const params = socialImage.parseSocialImageQuery(req.query);
+  const meta = ogCard.buildOgMeta(params);
+  return res.status(200).json({ success: true, ...meta });
+});
+
+app.get('/invite', async (req, res) => {
+  const params = socialImage.parseSocialImageQuery(req.query);
+  if (params.ref) {
+    await referralAttribution.recordVisit(params.ref);
+  }
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=60');
+  return res.status(200).send(ogCard.buildInviteLandingHtml(params));
+});
+
+app.get('/api/share-card/fixtures', (req, res) => {
+  const fixtures = shareCard.PREVIEW_FIXTURES.map((f) => ({
+    ...f,
+    imageUrl: `/api/share-card?score=${f.score}&locale=${f.locale}&teaser=${encodeURIComponent(f.teaser)}${f.ref ? `&ref=${encodeURIComponent(f.ref)}` : ''}`,
+    tweetText: shareCard.buildTweetText(f.locale, f.ref),
+  }));
+  return res.status(200).json({ success: true, fixtures });
+});
+
+app.get('/api/referral/rewards', async (req, res) => {
+  const referrerId =
+    req.query.kairosUserId || req.query.ref || (req.body && req.body.referralCode) || '';
+  const stats = await referralRewards.getReferrerRewardStats(referrerId);
+  if (!stats.ok) {
+    return res.status(400).json(stats);
+  }
+  return res.status(200).json({ success: true, ...stats });
+});
+
+app.post('/api/referral/visit', async (req, res) => {
+  const code =
+    (req.body && req.body.referralCode) ||
+    req.query.ref ||
+    '';
+  const result = await referralAttribution.recordVisit(code);
+  if (!result.ok) {
+    return res.status(400).json(result);
+  }
+  return res.status(200).json({ success: true, ...result });
+});
+
+app.get('/api/admin/metrics', async (req, res) => {
+  if (!assertAdminKey(req, res)) return;
+
+  const referrals = await referralAttribution.getSummary();
+  const out = {
+    success: true,
+    generatedAt: new Date().toISOString(),
+    referrals,
+    stripe: null,
+  };
+
+  if (!stripe) {
+    return res.status(200).json(out);
+  }
+
+  try {
+    const sessions = await stripe.checkout.sessions.list({ limit: 100, status: 'complete' });
+    let totalJpy = 0;
+    let count = 0;
+    const byPlan = { single: 0, bundle: 0, subscription: 0, other: 0 };
+    for (const s of sessions.data) {
+      if (s.payment_status !== 'paid') continue;
+      count += 1;
+      const amt = s.amount_total || 0;
+      if (s.currency === 'jpy') totalJpy += amt;
+      const plan = (s.metadata && s.metadata.plan) || 'other';
+      if (byPlan[plan] != null) byPlan[plan] += 1;
+      else byPlan.other += 1;
+    }
+    out.stripe = {
+      recentPaidSessions: count,
+      recentRevenueJpy: totalJpy,
+      byPlan,
+      note: 'Stripe list limit 100 most recent complete sessions',
+    };
+  } catch (err) {
+    out.stripe = { error: err.message };
+  }
+
+  return res.status(200).json(out);
 });
 
 /**
@@ -676,6 +983,9 @@ function resolveCheckoutPlan(plan) {
     };
   }
   if (plan === 'subscription') {
+    if (!isSubscriptionLaunchEnabled()) {
+      return null;
+    }
     return {
       priceId: process.env.STRIPE_PRICE_SUBSCRIPTION,
       sessionMode: 'subscription',
@@ -700,14 +1010,26 @@ async function validateStripePriceForMode(priceId, sessionMode, envName) {
       console.error(`Stripe Checkout Error: ${envName} must be recurring price, got ${price.type}`);
       return { ok: false, reason: 'price_type_mismatch', priceType: price.type };
     }
-    return { ok: true, priceType: price.type, livemode: price.livemode };
+    return {
+      ok: true,
+      priceType: price.type,
+      livemode: price.livemode,
+      unit_amount: price.unit_amount,
+      currency: price.currency,
+    };
   } catch (err) {
     console.error(`Stripe Checkout Error: retrieve ${envName}:`, err.message);
     return { ok: false, reason: 'price_retrieve_failed', message: err.message };
   }
 }
 
-async function createCheckoutSessionAndRedirect(res, { plan, locale, inputText, kairosUserId }) {
+async function createCheckoutSessionAndRedirect(res, {
+  plan,
+  locale,
+  inputText,
+  kairosUserId,
+  referralCode,
+}) {
   if (!stripe || !process.env.STRIPE_SECRET_KEY) {
     console.error('Stripe Checkout Error: STRIPE_SECRET_KEY is not configured');
     return res.status(503).send('Stripe Gateway Connection Error');
@@ -731,6 +1053,25 @@ async function createCheckoutSessionAndRedirect(res, { plan, locale, inputText, 
     return res.status(503).send('Stripe Gateway Connection Error');
   }
 
+  if (plan === 'bundle' && priceCheck.unit_amount !== 1000) {
+    console.error(
+      `Stripe Checkout Error: ${envName} must be 1000 JPY, got ${priceCheck.unit_amount}`,
+    );
+    return res.status(503).send('Stripe Gateway Connection Error');
+  }
+  if (plan === 'single' && priceCheck.unit_amount !== 300) {
+    console.error(
+      `Stripe Checkout Error: ${envName} must be 300 JPY, got ${priceCheck.unit_amount}`,
+    );
+    return res.status(503).send('Stripe Gateway Connection Error');
+  }
+
+  let stripeCustomerId = null;
+  const normalizedUid = kairosCredits.normalizeUserId(kairosUserId);
+  if (normalizedUid) {
+    stripeCustomerId = await kairosCredits.ensureStripeCustomerId(normalizedUid);
+  }
+
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ['card'],
     line_items: [{ price: priceId, quantity: 1 }],
@@ -740,8 +1081,10 @@ async function createCheckoutSessionAndRedirect(res, { plan, locale, inputText, 
       plan: String(plan),
       inputText: String(inputText || '').slice(0, 500),
       kairosUserId: String(kairosUserId || '').slice(0, 128),
+      referralCode: String(referralCode || '').slice(0, 64),
     },
     client_reference_id: String(kairosUserId || '').slice(0, 200) || undefined,
+    ...(stripeCustomerId ? { customer: stripeCustomerId } : {}),
     success_url: 'https://get-kairos.online/success?session_id={CHECKOUT_SESSION_ID}',
     cancel_url: 'https://get-kairos.online/canceled',
   });
@@ -768,8 +1111,28 @@ app.post('/api/checkout/prepare', (req, res) => {
   if (!resolveCheckoutPlan(plan)) {
     return res.status(400).json({ error: 'invalid_plan' });
   }
-  const prepareId = checkoutPending.createPending({ plan, locale, inputText, kairosUserId });
-  return res.status(200).json({ prepareId });
+  const referralCode = referralAttribution.normalizeReferralCode(
+    (req.body && req.body.referralCode) || '',
+  );
+  const prepareId = checkoutPending.createPending({
+    plan,
+    locale,
+    inputText,
+    kairosUserId,
+    referralCode: referralCode || '',
+  });
+  const creditsGranted = kairosCredits.creditsForPlan(plan);
+  return res.status(200).json({
+    prepareId,
+    plan,
+    creditsGranted,
+    label:
+      plan === 'bundle'
+        ? 'bundle_5'
+        : plan === 'subscription'
+          ? 'subscription'
+          : 'single',
+  });
 });
 
 app.get('/api/checkout', async (req, res) => {
@@ -778,6 +1141,7 @@ app.get('/api/checkout', async (req, res) => {
     let locale = req.query.locale;
     let inputText = '';
     let kairosUserId = '';
+    let referralCode = referralAttribution.normalizeReferralCode(req.query.referralCode || '');
 
     const prepareId = req.query.prepareId;
     if (prepareId) {
@@ -789,6 +1153,9 @@ app.get('/api/checkout', async (req, res) => {
       locale = pending.locale;
       inputText = pending.inputText;
       kairosUserId = pending.kairosUserId || '';
+      if (!referralCode && pending.referralCode) {
+        referralCode = referralAttribution.normalizeReferralCode(pending.referralCode);
+      }
     }
 
     return await createCheckoutSessionAndRedirect(res, {
@@ -796,6 +1163,7 @@ app.get('/api/checkout', async (req, res) => {
       locale: locale || 'ja',
       inputText,
       kairosUserId,
+      referralCode: referralCode || '',
     });
   } catch (error) {
     console.error('Stripe Checkout Error:', error.message);
@@ -819,6 +1187,7 @@ app.get('/api/status', (req, res) => {
         process.env.STRIPE_PRICE_SUBSCRIPTION,
     ),
     singleOnlyLaunch: process.env.KAIROS_SINGLE_ONLY === 'true',
+    subscriptionLaunchEnabled: isSubscriptionLaunchEnabled(),
   });
 });
 
@@ -834,6 +1203,16 @@ app.get('/api/checkout-health', async (req, res) => {
   ];
   const out = {};
   for (const row of plans) {
+    if (row.plan === 'subscription' && !isSubscriptionLaunchEnabled()) {
+      out[row.plan] = {
+        priceId: row.priceId || null,
+        sessionMode: row.sessionMode,
+        ok: false,
+        reason: 'disabled_at_launch',
+        message: 'Subscription checkout is disabled until entitlement logic ships.',
+      };
+      continue;
+    }
     if (!row.priceId) {
       out[row.plan] = { ok: false, reason: 'env_missing' };
       continue;
@@ -962,6 +1341,39 @@ app.post('/api/payment-intent', async (req, res) => {
       purp: metadata.iso20022_purp_cd,
       strd: metadata.iso20022_strd_json,
     },
+  });
+});
+
+/** Vercel Cron: daily X DM scout candidates (no auto-DM). Auth: Bearer CRON_SECRET */
+app.get('/api/cron/dm-scout', async (req, res) => {
+  const secret = process.env.CRON_SECRET;
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!secret || token !== secret) {
+    return res.status(401).json({ ok: false, error: 'unauthorized' });
+  }
+
+  const report = await xDmScout.runDmScout({ limit: 5 });
+  const markdown = xDmScout.formatReportMarkdown(report);
+
+  let email = { sent: false };
+  const notifyEmail = process.env.KAIROS_SCOUT_NOTIFY_EMAIL;
+  if (notifyEmail) {
+    const day = (report.generatedAt || new Date().toISOString()).slice(0, 10);
+    email = await xDmScout.sendNotifyEmail(
+      notifyEmail,
+      `KAIROS X DM Scout — ${day}`,
+      markdown,
+    );
+  }
+
+  return res.status(200).json({
+    ok: report.ok,
+    generatedAt: report.generatedAt || new Date().toISOString(),
+    candidateCount: report.candidateCount || 0,
+    candidates: report.candidates || [],
+    email,
+    markdown,
   });
 });
 
