@@ -33,8 +33,9 @@
 - 本番 URL / 最新デプロイ ID（分かる場合）/ ブロッカー有無
 
 ## B. コードベース事実（箇条書き・ファイルパス必須）
-- 存在する API ルート一覧
-- 決済フロー（Checkout / PaymentIntent / Webhook）の実装有無
+- 存在する API ルート一覧（`/api/checkout-health`, `/api/credits`, `/api/analyze` の `generatedBy` 含む）
+- 決済フロー（Checkout / 5回クレジット / Webhook）の実装有無
+- スカラベ（`public/scarab-anchor.png`、解析オーバーレイ）の有無
 - 未実装として BLUEPRINT §7 に列挙されているもののうち、今日触る予定があるもの
 
 ## C. 引継ぎ文書との矛盾チェック
@@ -43,7 +44,9 @@
 
 ## D. 本番確認結果（実行できた場合のみ）
 - /legal/tokushoho の 3 プラン表記の有無
+- /api/checkout-health の `plans.bundle.ok` と `unit_amount`（1000 期待）
 - /api/checkout?plan=single の HTTP ステータス（303 期待）
+- 実解析の `generatedBy` が `gemini` か（定型 88 フォールバックでないか）
 
 ## E. 今日 Cursor に渡すべき指示のたたき台（最大3項目）
 - 各項目に「根拠ファイル:行」または「未実装（§7）」を付ける

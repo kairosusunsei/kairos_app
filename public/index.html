@@ -7,6 +7,39 @@
   <meta name="googlebot" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"/>
   <meta name="bingbot" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"/>
   <meta name="slurp" content="index,follow"/>
+  <meta name="description" content="KAIROS — AI behavioral analytics. Turn your text into a deep psychological report with a Synchronicity Score."/>
+  <meta property="og:type" content="website"/>
+  <meta property="og:site_name" content="KAIROS"/>
+  <meta property="og:title" content="KAIROS — Behavioral Analytics"/>
+  <meta property="og:description" content="Turn your text into a deep behavioral analytics report. Unseal your omen."/>
+  <meta property="og:url" content="https://get-kairos.online/"/>
+  <meta property="og:image" content="https://get-kairos.online/api/og.png"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta property="og:locale" content="ja_JP"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="KAIROS — Behavioral Analytics"/>
+  <meta name="twitter:description" content="Turn your text into a deep behavioral analytics report."/>
+  <meta name="twitter:image" content="https://get-kairos.online/api/og.png"/>
+  <link rel="alternate" type="text/plain" href="/llms.txt" title="LLM site guidance"/>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "KAIROS Behavioral Analytics",
+    "alternateName": "エンタメカイロス",
+    "url": "https://get-kairos.online/",
+    "applicationCategory": "LifestyleApplication",
+    "operatingSystem": "Web",
+    "description": "AI behavioral analytics entertainment. Paste text to receive a deep psychological-style report with synchronicity scoring. Not fortune telling or medical diagnosis.",
+    "offers": [
+      { "@type": "Offer", "price": "300", "priceCurrency": "JPY", "name": "Single analysis" },
+      { "@type": "Offer", "price": "1000", "priceCurrency": "JPY", "name": "Five-run bundle" },
+      { "@type": "Offer", "price": "2000", "priceCurrency": "JPY", "name": "Monthly premium" }
+    ],
+    "inLanguage": ["ja", "en", "es", "fr", "de", "it", "pt"]
+  }
+  </script>
   <title>KAIROS — Behavioral Analytics</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
@@ -34,6 +67,22 @@
       background: transparent;
     }
     #omen-report.hidden { display: none; }
+    #scarab-analyze-overlay.hidden { display: none; }
+    #scarab-analyze-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 90;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      background: rgba(8, 4, 24, 0.88);
+      backdrop-filter: blur(12px);
+    }
+    .scarab-anchor-glow {
+      background: radial-gradient(circle, rgba(255, 176, 64, 0.55) 0%, rgba(0, 210, 255, 0.22) 42%, transparent 72%);
+    }
     #legal-modal[hidden] { display: none; }
     #legal-modal {
       position: fixed;
@@ -120,6 +169,10 @@
         font-size: 1.35rem;
       }
     }
+    #plan-picker .plan-option-recommended:has(input:checked) {
+      border-color: rgba(255, 149, 0, 0.65);
+      box-shadow: 0 0 20px rgba(255, 149, 0, 0.15);
+    }
     #plan-picker .plan-option:has(input:checked) {
       border-color: rgba(201, 162, 39, 0.85);
       background: rgba(201, 162, 39, 0.12);
@@ -129,6 +182,21 @@
 </head>
 <body class="relative overflow-x-hidden bg-kairos-void bg-kairos-radial bg-fixed font-bold">
   <div class="pointer-events-none fixed inset-0 bg-kairos-radial animate-victorian-shimmer" aria-hidden="true"></div>
+
+  <div id="scarab-analyze-overlay" class="hidden" role="status" aria-live="polite" aria-busy="true" aria-hidden="true">
+    <div class="relative flex h-56 w-56 items-center justify-center sm:h-72 sm:w-72">
+      <div class="scarab-anchor-glow pointer-events-none absolute inset-0 rounded-full animate-scarab-anchor-glow" aria-hidden="true"></div>
+      <img
+        src="/scarab-anchor.png"
+        width="512"
+        height="512"
+        alt=""
+        class="relative z-[1] h-full w-full object-contain animate-scarab-anchor-pulse"
+        decoding="async"
+      />
+    </div>
+    <p id="scarab-overlay-status" class="mt-8 max-w-md text-center font-science text-sm font-black uppercase tracking-[0.22em] text-kairos-brass text-kairos-gold-glow sm:text-base"></p>
+  </div>
 
   <header class="relative z-10 border-b-2 border-kairos-brass/50 bg-kairos-void/95 px-4 py-5 backdrop-blur-sm sm:px-8">
     <div class="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4">
@@ -194,13 +262,17 @@
           </div>
 
           <div id="plan-picker" class="mt-5 grid grid-cols-1 gap-3 border-t-2 border-kairos-brass/25 pt-5 sm:grid-cols-3 sm:gap-4">
-            <label class="plan-option flex cursor-pointer items-center gap-3 rounded border-2 border-kairos-brass/40 bg-kairos-void/50 px-4 py-3 font-science font-black text-kairos-parchment sm:px-5 sm:py-4">
-              <input type="radio" name="billing-plan" value="single" checked class="h-5 w-5 shrink-0 accent-kairos-brass sm:h-6 sm:w-6"/>
-              <span class="plan-option-label text-lg leading-snug sm:text-xl">1回 ¥300</span>
+            <label class="plan-option plan-option-recommended flex cursor-pointer flex-col gap-1 rounded border-2 border-kairos-brass/40 bg-kairos-void/50 px-4 py-3 font-science font-black text-kairos-parchment sm:px-5 sm:py-4">
+              <span id="i18n-plan-recommended" class="text-[0.65rem] font-black uppercase tracking-[0.2em] text-kairos-neon">おすすめ</span>
+              <span class="flex items-center gap-3">
+                <input type="radio" name="billing-plan" value="bundle" checked class="h-5 w-5 shrink-0 accent-kairos-brass sm:h-6 sm:w-6"/>
+                <span class="plan-option-label text-lg leading-snug sm:text-xl">5回 ¥1,000</span>
+              </span>
+              <span id="i18n-plan-bundle-note" class="pl-8 text-xs font-bold text-kairos-cobalt/85">都度300円×5より200円お得（税込）</span>
             </label>
             <label class="plan-option flex cursor-pointer items-center gap-3 rounded border-2 border-kairos-brass/40 bg-kairos-void/50 px-4 py-3 font-science font-black text-kairos-parchment sm:px-5 sm:py-4">
-              <input type="radio" name="billing-plan" value="bundle" class="h-5 w-5 shrink-0 accent-kairos-brass sm:h-6 sm:w-6"/>
-              <span class="plan-option-label text-lg leading-snug sm:text-xl">5回 ¥1,000</span>
+              <input type="radio" name="billing-plan" value="single" class="h-5 w-5 shrink-0 accent-kairos-brass sm:h-6 sm:w-6"/>
+              <span class="plan-option-label text-lg leading-snug sm:text-xl">1回 ¥300</span>
             </label>
             <label class="plan-option flex cursor-pointer items-center gap-3 rounded border-2 border-kairos-brass/40 bg-kairos-void/50 px-4 py-3 font-science font-black text-kairos-parchment sm:px-5 sm:py-4">
               <input type="radio" name="billing-plan" value="subscription" class="h-5 w-5 shrink-0 accent-kairos-brass sm:h-6 sm:w-6"/>
@@ -239,27 +311,18 @@
 
         <div id="omen-report-body" class="relative transition-[filter,opacity] duration-500">
           <div class="mb-8 flex flex-col items-center gap-4 border-b-2 border-kairos-brass/30 pb-8">
-            <div id="report-scarab" class="relative flex h-28 w-28 items-center justify-center rounded-full border-2 border-kairos-brass/50 bg-kairos-void/75 shadow-brass sm:h-32 sm:w-32 animate-scarab-pulse">
-              <svg class="h-[5.5rem] w-[5.5rem] sm:h-24 sm:w-24" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <defs>
-                  <linearGradient id="rep-g-cobalt" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#00f0ff"/>
-                    <stop offset="100%" stop-color="#0066cc"/>
-                  </linearGradient>
-                  <linearGradient id="rep-g-brass" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#e4c78a"/>
-                    <stop offset="100%" stop-color="#6b4f24"/>
-                  </linearGradient>
-                </defs>
-                <ellipse cx="32" cy="38" rx="22" ry="14" fill="url(#rep-g-brass)" stroke="#9B773D" stroke-width="2.4"/>
-                <path fill="#0f0731" d="M32 10c-6 8-10 18-10 28h20c0-10-4-20-10-28z"/>
-                <ellipse cx="32" cy="22" rx="8" ry="6" fill="url(#rep-g-brass)" stroke="#9B773D" stroke-width="2"/>
-                <path stroke="#9B773D" stroke-width="2.4" stroke-linecap="round" d="M14 36c-4-2-6-6-6-10M50 36c4-2 6-6 6-10"/>
-                <path stroke="#c9a56a" stroke-width="1.6" stroke-linecap="round" d="M22 42h20M24 46h16"/>
-              </svg>
+            <div id="report-scarab" class="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-2 border-kairos-brass/50 bg-kairos-void/75 shadow-brass sm:h-32 sm:w-32 animate-scarab-pulse">
+              <img src="/scarab-anchor.png" width="256" height="256" alt="" class="h-[92%] w-[92%] object-contain" decoding="async"/>
             </div>
             <h2 id="i18n-report-title" class="font-display text-xl font-black uppercase tracking-[0.28em] text-kairos-brass text-kairos-gold-glow sm:text-2xl">深層心理レポート</h2>
           </div>
+
+          <p
+            id="credits-remaining-report"
+            class="mb-6 hidden rounded border-2 border-kairos-cobalt/55 bg-kairos-cobalt/15 px-4 py-3 text-center font-science text-base font-black leading-snug text-kairos-cobalt text-kairos-omen-glow sm:text-lg"
+            role="status"
+            aria-live="polite"
+          ></p>
 
           <p id="seal-banner" class="mb-6 hidden rounded border-2 border-kairos-neon/50 bg-kairos-neon/15 px-4 py-3 text-center font-science text-sm font-black leading-snug text-kairos-neon text-kairos-omen-glow sm:text-base"></p>
 
@@ -295,17 +358,33 @@
 
     <footer class="mt-8 w-full max-w-4xl">
     <div id="viral-loop-banner" class="mb-10 w-full rounded-sm border-2 border-kairos-brass/55 bg-kairos-void/80 p-6 text-center shadow-brass backdrop-blur-md">
-      <h3 class="font-display text-lg font-black uppercase tracking-[0.2em] text-kairos-gold-glow mb-3">シンクロの共有</h3>
-      <p class="font-science text-sm font-bold text-kairos-cobalt/95 mb-6">
-        この深層心理レポートを <span class="text-kairos-neon">#エンタメカイロス</span> でシェアしてください。<br>
-        投稿URLを添えて私にDMで報告いただければ、次回の解析に適用可能な100円OFFクーポンを発行します。
+      <h3 id="i18n-share-title" class="font-display text-lg font-black uppercase tracking-[0.2em] text-kairos-gold-glow mb-3">シンクロの共有</h3>
+      <p id="i18n-share-hint" class="font-science text-sm font-bold text-kairos-cobalt/95 mb-4">
+        解析後にカード画像を保存して <span class="text-kairos-neon">#エンタメカイロス</span> で投稿してください（自動投稿はしません）。
       </p>
-      <button 
-        onclick="window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent('私の深層心理レポートを確認しました。 #エンタメカイロス'), '_blank')"
-        class="font-display w-full max-w-sm border-2 border-kairos-neon/60 bg-kairos-neon/10 px-6 py-4 font-black uppercase tracking-[0.1em] text-kairos-neon hover:bg-kairos-neon/20 transition"
-      >
-        インサイトを共有してクーポンを獲得
-      </button>
+      <p id="i18n-share-reward-hint" class="font-science mb-4 text-xs font-bold leading-relaxed text-kairos-brass/90"></p>
+      <p id="i18n-share-native-hint" class="font-science mb-4 hidden text-xs font-bold text-kairos-brass/85"></p>
+      <div id="share-card-preview-wrap" class="mx-auto mb-4 hidden max-w-xs">
+        <img id="share-card-preview-img" alt="" class="mx-auto w-full rounded border-2 border-kairos-brass/50 shadow-brass" width="320" height="320"/>
+      </div>
+      <p id="share-referral-link" class="font-science mb-4 hidden break-all text-xs font-bold text-kairos-cobalt/90"></p>
+      <div class="mx-auto flex max-w-md flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
+        <button id="share-native-btn" type="button" class="font-display hidden w-full border-2 border-kairos-cobalt/70 bg-kairos-cobalt/20 px-4 py-3 text-sm font-black uppercase tracking-wide text-kairos-parchment hover:bg-kairos-cobalt/35 sm:w-auto sm:flex-1">
+          共有…
+        </button>
+        <button id="share-card-download-btn" type="button" class="font-display hidden flex-1 border-2 border-kairos-brass/70 bg-kairos-brass/20 px-4 py-3 text-sm font-black uppercase tracking-wide text-kairos-parchment hover:bg-kairos-brass/35">
+          カードを保存
+        </button>
+        <button id="share-copy-link-btn" type="button" class="font-display hidden flex-1 border-2 border-kairos-brass/40 bg-kairos-void/60 px-4 py-3 text-sm font-black uppercase tracking-wide text-kairos-brass hover:bg-kairos-brass/15">
+          リンクをコピー
+        </button>
+        <button id="share-x-btn" type="button" class="font-display hidden flex-1 border-2 border-kairos-neon/60 bg-kairos-neon/10 px-4 py-3 text-sm font-black uppercase tracking-wide text-kairos-neon hover:bg-kairos-neon/20">
+          X で共有
+        </button>
+      </div>
+      <p class="font-science mt-4 text-xs font-bold text-kairos-brass/80">
+        <a href="/share-card-preview.html" class="underline decoration-kairos-brass/50">シェアカードのテストケースを見る</a>
+      </p>
     </div>
 
     <details class="relative mt-10 w-full max-w-3xl rounded-sm border-2 border-kairos-brass/40 bg-kairos-ink/45 p-4 backdrop-blur-sm sm:p-5">
@@ -338,6 +417,9 @@
     </details>
 
     <div class="mt-12 w-full border-t border-kairos-brass/25 pt-6 pb-8 text-center">
+      <p class="mb-3 font-science text-xs font-bold text-kairos-cobalt/70">
+        <a href="/topics/" class="underline decoration-kairos-brass/40">テーマ別ガイド（行動分析）</a>
+      </p>
       <button type="button" id="legal-footer-link" aria-haspopup="dialog" aria-controls="legal-modal">特定商取引法に基づく表記および利用規約</button>
       <p class="mt-2 font-science text-[0.65rem] font-bold text-kairos-cobalt/60">© KAIROS Behavioral Analytics</p>
     </div>
@@ -414,6 +496,7 @@
       var copy = null;
       window.kairosCreditsBalance = 0;
       window.checkoutPlanHealth = { single: true, bundle: false, subscription: false };
+      window.checkoutPlanAmounts = {};
 
       function applyCheckoutPlanHealth(health) {
         if (!health || !health.plans) return;
@@ -422,6 +505,11 @@
           single: !!(p.single && p.single.ok),
           bundle: !!(p.bundle && p.bundle.ok),
           subscription: !!(p.subscription && p.subscription.ok),
+        };
+        window.checkoutPlanAmounts = {
+          single: p.single && p.single.unit_amount,
+          bundle: p.bundle && p.bundle.unit_amount,
+          subscription: p.subscription && p.subscription.unit_amount,
         };
         var labels = document.querySelectorAll('#plan-picker label.plan-option');
         for (var i = 0; i < labels.length; i++) {
@@ -433,10 +521,26 @@
           labels[i].classList.toggle('pointer-events-none', !enabled);
           input.disabled = !enabled;
         }
-        var firstOk = document.querySelector(
-          '#plan-picker input[name="billing-plan"]:not(:disabled)',
+        var checked = document.querySelector('#plan-picker input[name="billing-plan"]:checked');
+        if (checked && checked.disabled) {
+          selectDefaultBillingPlan();
+        } else {
+          selectDefaultBillingPlan();
+        }
+      }
+
+      function selectDefaultBillingPlan() {
+        var bundle = document.querySelector(
+          '#plan-picker input[name="billing-plan"][value="bundle"]:not(:disabled)',
         );
-        if (firstOk) firstOk.checked = true;
+        var single = document.querySelector(
+          '#plan-picker input[name="billing-plan"][value="single"]:not(:disabled)',
+        );
+        if (bundle) {
+          bundle.checked = true;
+        } else if (single) {
+          single.checked = true;
+        }
       }
 
       function refreshCheckoutPlanHealth() {
@@ -467,6 +571,194 @@
           return 'kairos_guest_' + Date.now();
         }
       }
+      function getReferralCode() {
+        try {
+          var stored = localStorage.getItem('kairos_referral_code');
+          if (stored && /^kairos_[a-z0-9_-]+$/i.test(stored)) return stored;
+        } catch (_) {}
+        return '';
+      }
+      function initReferralFromUrl() {
+        try {
+          var ref = new URLSearchParams(window.location.search).get('ref') || '';
+          if (!ref || !/^kairos_[a-z0-9_-]+$/i.test(ref)) return;
+          localStorage.setItem('kairos_referral_code', ref);
+          fetch('/api/referral/visit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ referralCode: ref }),
+          }).catch(function () {});
+        } catch (_) {}
+      }
+      var KAIROS_SITE = 'https://get-kairos.online';
+      function buildShareCardQuery(payload) {
+        var data = payload || window.lastAnalyzePayload || {};
+        var q = new URLSearchParams({
+          score: String(data.synchronicityScore != null ? data.synchronicityScore : 88),
+          teaser: String(data.thoughtResonanceVector || '').trim(),
+          locale: locale || 'ja',
+        });
+        var ref = getKairosUserId();
+        if (ref && /^kairos_/.test(ref)) q.set('ref', ref);
+        return q;
+      }
+      function buildShareCardUrl(payload) {
+        return '/api/share-card?' + buildShareCardQuery(payload).toString();
+      }
+      function buildShareCardPngUrl(payload) {
+        return '/api/share-card.png?' + buildShareCardQuery(payload).toString();
+      }
+      function buildInviteUrl(ref) {
+        var code = ref || getKairosUserId();
+        if (!code || !/^kairos_/.test(code)) return KAIROS_SITE + '/';
+        return KAIROS_SITE + '/invite?ref=' + encodeURIComponent(code);
+      }
+      function buildOgImageUrlForRef(ref, payload) {
+        var data = payload || window.lastAnalyzePayload || {};
+        var q = new URLSearchParams({
+          score: String(data.synchronicityScore != null ? data.synchronicityScore : 88),
+          locale: locale || 'ja',
+        });
+        if (data.thoughtResonanceVector) q.set('teaser', String(data.thoughtResonanceVector).trim());
+        if (ref && /^kairos_/.test(ref)) q.set('ref', ref);
+        return KAIROS_SITE + '/api/og.png?' + q.toString();
+      }
+      function setMetaContent(selector, value) {
+        if (!value) return;
+        var el = document.querySelector(selector);
+        if (el) el.setAttribute('content', value);
+      }
+      function updateSocialMetaFromUrl() {
+        try {
+          var ref = new URLSearchParams(window.location.search).get('ref') || '';
+          if (!ref || !/^kairos_[a-z0-9_-]+$/i.test(ref)) return;
+          var inviteUrl = buildInviteUrl(ref);
+          var ogImg = buildOgImageUrlForRef(ref, window.lastAnalyzePayload || {});
+          var isJa = (locale || 'ja') === 'ja';
+          var title = isJa
+            ? 'KAIROS 招待 — 行動分析レポート'
+            : 'KAIROS invite — Behavioral Analytics';
+          var desc = isJa
+            ? 'テキストから深層心理レポートを生成。シンクロニシティ・スコアで予兆を可視化。'
+            : 'Generate a deep behavioral analytics report from your text.';
+          document.title = title;
+          setMetaContent('meta[name="description"]', desc);
+          setMetaContent('meta[property="og:title"]', title);
+          setMetaContent('meta[property="og:description"]', desc);
+          setMetaContent('meta[property="og:url"]', inviteUrl);
+          setMetaContent('meta[property="og:image"]', ogImg);
+          setMetaContent('meta[name="twitter:title"]', title);
+          setMetaContent('meta[name="twitter:description"]', desc);
+          setMetaContent('meta[name="twitter:image"]', ogImg);
+        } catch (_) {}
+      }
+      function shareCardToPngBlob(svgUrl) {
+        return fetch(svgUrl, { cache: 'no-store' })
+          .then(function (r) {
+            if (!r.ok) throw new Error('svg_fetch');
+            return r.text();
+          })
+          .then(function (svgText) {
+            return new Promise(function (resolve, reject) {
+              var img = new Image();
+              var objectUrl = URL.createObjectURL(
+                new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }),
+              );
+              img.onload = function () {
+                try {
+                  var canvas = document.createElement('canvas');
+                  canvas.width = 1080;
+                  canvas.height = 1080;
+                  var ctx = canvas.getContext('2d');
+                  if (!ctx) throw new Error('canvas');
+                  ctx.drawImage(img, 0, 0, 1080, 1080);
+                  canvas.toBlob(
+                    function (blob) {
+                      URL.revokeObjectURL(objectUrl);
+                      if (blob) resolve(blob);
+                      else reject(new Error('png_blob'));
+                    },
+                    'image/png',
+                    0.92,
+                  );
+                } catch (err) {
+                  URL.revokeObjectURL(objectUrl);
+                  reject(err);
+                }
+              };
+              img.onerror = function () {
+                URL.revokeObjectURL(objectUrl);
+                reject(new Error('svg_decode'));
+              };
+              img.src = objectUrl;
+            });
+          });
+      }
+      function downloadShareCardPng() {
+        var svgUrl = buildShareCardUrl(window.lastAnalyzePayload);
+        return shareCardToPngBlob(svgUrl).then(function (blob) {
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'kairos-share-card.png';
+          a.click();
+          setTimeout(function () {
+            URL.revokeObjectURL(a.href);
+          }, 2000);
+        });
+      }
+      function buildShareTweetText() {
+        var url = buildInviteUrl(getKairosUserId());
+        if ((locale || 'ja') === 'en') {
+          return 'I unlocked my KAIROS behavioral analytics report. Try yours: ' + url + ' #EntertainKAIROS';
+        }
+        return '深層心理レポートを解析解禁しました。あなたも試してみてください ' + url + ' #エンタメカイロス';
+      }
+      function buildNativeSharePayload() {
+        var url = buildInviteUrl(getKairosUserId());
+        var isJa = (locale || 'ja') === 'ja';
+        return {
+          title: isJa ? 'KAIROS — 行動分析レポート' : 'KAIROS — Behavioral Analytics',
+          text: isJa
+            ? '深層心理レポートを解析解禁しました。'
+            : 'I unlocked my KAIROS behavioral analytics report.',
+          url: url,
+        };
+      }
+      function updateShareCardUi(payload) {
+        var data = payload || {};
+        if (!data.success || data.locked || data.accessTier === 'teaser') return;
+        var wrap = document.getElementById('share-card-preview-wrap');
+        var img = document.getElementById('share-card-preview-img');
+        var dl = document.getElementById('share-card-download-btn');
+        var xb = document.getElementById('share-x-btn');
+        var nb = document.getElementById('share-native-btn');
+        var cl = document.getElementById('share-copy-link-btn');
+        var nh = document.getElementById('i18n-share-native-hint');
+        var linkEl = document.getElementById('share-referral-link');
+        if (!wrap || !img) return;
+        var cardUrl = buildShareCardUrl(data);
+        img.src = cardUrl;
+        wrap.classList.remove('hidden');
+        if (dl) dl.classList.remove('hidden');
+        if (xb) xb.classList.remove('hidden');
+        if (cl) cl.classList.remove('hidden');
+        if (typeof navigator !== 'undefined' && navigator.share && nb) {
+          nb.classList.remove('hidden');
+          if (nh && t('shareNativeHint')) {
+            nh.textContent = t('shareNativeHint');
+            nh.classList.remove('hidden');
+          }
+        }
+        var myRef = getKairosUserId();
+        if (linkEl && /^kairos_/.test(myRef)) {
+          linkEl.textContent = formatCreditsTemplate(
+            t('shareReferralHint', 'Your invite link: {n}'),
+            buildInviteUrl(myRef),
+          );
+          linkEl.classList.remove('hidden');
+        }
+        updateSocialMetaFromUrl();
+      }
 
       function newAnalyzeRequestId() {
         return 'ar_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
@@ -474,6 +766,31 @@
 
       function formatCreditsTemplate(template, count) {
         return String(template || '').replace(/\{n\}/g, String(count));
+      }
+      function resolveAnalyzeStatusMessage(payload) {
+        if (!payload) return t('statusAnalyzed', 'Done.');
+        if (payload.purchaseRequired) {
+          return t('creditsExhausted', 'No analyses left. Please purchase a plan.');
+        }
+        if (typeof payload.creditsRemaining === 'number' && payload.creditsRemaining > 0) {
+          return formatCreditsTemplate(
+            t('statusAnalyzedWithCredits', 'Done. Remaining: {n}'),
+            payload.creditsRemaining,
+          );
+        }
+        if (payload.creditsRemaining === 0 && payload.lastGrantPlan === 'bundle') {
+          return t(
+            'statusBundleExhausted',
+            'Done. You have used all 5 runs in your pack. Purchase a plan to continue.',
+          );
+        }
+        if (payload.creditsRemaining === 0 && payload.lastGrantPlan === 'single') {
+          return t(
+            'statusSingleExhausted',
+            'Done. Your purchased run is used. Purchase a plan to continue.',
+          );
+        }
+        return t('statusAnalyzed', 'Done.');
       }
 
       function updateCreditsBanner() {
@@ -492,19 +809,36 @@
         }
       }
 
+      function readCreditsLocal() {
+        try {
+          var n = parseInt(localStorage.getItem('kairos_credits_balance'), 10);
+          return Number.isFinite(n) && n > 0 ? n : 0;
+        } catch (_) {
+          return 0;
+        }
+      }
+      function persistCreditsLocal(n) {
+        try {
+          localStorage.setItem('kairos_credits_balance', String(Math.max(0, n)));
+        } catch (_) {}
+      }
       function refreshCredits() {
         return fetch('/api/credits?kairosUserId=' + encodeURIComponent(getKairosUserId()), {
           cache: 'no-store',
         })
           .then(function (r) { return r.json(); })
           .then(function (data) {
-            window.kairosCreditsBalance =
+            var server =
               data && typeof data.creditsRemaining === 'number' ? data.creditsRemaining : 0;
+            var merged = Math.max(server, readCreditsLocal());
+            window.kairosCreditsBalance = merged;
+            if (merged > 0) persistCreditsLocal(merged);
             updateCreditsBanner();
             return data;
           })
           .catch(function () {
-            window.kairosCreditsBalance = 0;
+            var cached = readCreditsLocal();
+            window.kairosCreditsBalance = cached;
             updateCreditsBanner();
           });
       }
@@ -518,7 +852,20 @@
           ['i18n-advice-label', t.adviceLabel], ['i18n-leak-label', t.leakLabel], ['seal-overlay-caption', t.sealOverlayCaption],
           ['seal-overlay-sub', t.sealOverlaySub], ['unseal-btn', t.unseal], ['i18n-omen', t.omenBuffer], ['i18n-stream-demo', t.streamDemo],
           ['analyze-btn', t.runAnalyze],
+          ['i18n-share-title', t.shareTitle], ['i18n-share-hint', t.shareHint],
+          ['i18n-share-reward-hint', t.shareRewardHint],
+          ['i18n-plan-recommended', t.planRecommended], ['i18n-plan-bundle-note', t.planBundleNote],
         ];
+        var dlBtn = document.getElementById('share-card-download-btn');
+        var xBtn = document.getElementById('share-x-btn');
+        var nbBtn = document.getElementById('share-native-btn');
+        var clBtn = document.getElementById('share-copy-link-btn');
+        var nhEl = document.getElementById('i18n-share-native-hint');
+        if (dlBtn && t.shareDownload) dlBtn.textContent = t.shareDownload;
+        if (xBtn && t.shareOnX) xBtn.textContent = t.shareOnX;
+        if (nbBtn && t.shareNative) nbBtn.textContent = t.shareNative;
+        if (clBtn && t.shareCopyLink) clBtn.textContent = t.shareCopyLink;
+        if (nhEl && t.shareNativeHint) nhEl.textContent = t.shareNativeHint;
         for (var j = 0; j < map.length; j++) {
           var el = document.getElementById(map[j][0]);
           if (el) el.textContent = map[j][1];
@@ -557,7 +904,7 @@
         try { sessionStorage.setItem('kairos_locale', next); } catch (_) {}
         initLocale().then(setLocalePickerValue);
       }
-      const shell = document.getElementById('scarab-shell'), halo = document.getElementById('scarab-halo'), body = document.querySelector('.scarab-body'), btn = document.getElementById('unseal-btn'), status = document.getElementById('status-line'), out = document.getElementById('omen-out'), behaviorIngest = document.getElementById('behavior-ingest'), fileInput = document.getElementById('file-input'), fileList = document.getElementById('file-list'), pasteInput = document.getElementById('paste-input'), analyzeBtn = document.getElementById('analyze-btn'), analyzeStatus = document.getElementById('analyze-status'), decoupleBtn = document.getElementById('decouple-btn'), omenReport = document.getElementById('omen-report'), omenReportBody = document.getElementById('omen-report-body'), omenReportFrame = document.getElementById('omen-report-frame'), omenScore = document.getElementById('omen-score'), omenFate = document.getElementById('omen-fate'), omenAdvice = document.getElementById('omen-advice'), omenLeak = document.getElementById('omen-leak'), sealBanner = document.getElementById('seal-banner'), sealOverlay = document.getElementById('seal-overlay');
+      const shell = document.getElementById('scarab-shell'), halo = document.getElementById('scarab-halo'), body = document.querySelector('.scarab-body'), btn = document.getElementById('unseal-btn'), status = document.getElementById('status-line'), out = document.getElementById('omen-out'), behaviorIngest = document.getElementById('behavior-ingest'), fileInput = document.getElementById('file-input'), fileList = document.getElementById('file-list'), pasteInput = document.getElementById('paste-input'), analyzeBtn = document.getElementById('analyze-btn'), analyzeStatus = document.getElementById('analyze-status'), decoupleBtn = document.getElementById('decouple-btn'), omenReport = document.getElementById('omen-report'), omenReportBody = document.getElementById('omen-report-body'), omenReportFrame = document.getElementById('omen-report-frame'), omenScore = document.getElementById('omen-score'), omenFate = document.getElementById('omen-fate'), omenAdvice = document.getElementById('omen-advice'), omenLeak = document.getElementById('omen-leak'), sealBanner = document.getElementById('seal-banner'), sealOverlay = document.getElementById('seal-overlay'), scarabAnalyzeOverlay = document.getElementById('scarab-analyze-overlay'), scarabOverlayStatus = document.getElementById('scarab-overlay-status');
       var pickedFiles = [];
       let phase = 0, es = null;
       let lastSealState = null;
@@ -597,12 +944,83 @@
         var picked = document.querySelector('input[name="billing-plan"]:checked:not(:disabled)');
         if (picked) return picked.value;
         var fallback = document.querySelector('input[name="billing-plan"]:not(:disabled)');
-        return (fallback && fallback.value) || 'single';
+        return (fallback && fallback.value) || 'bundle';
+      }
+      function getCheckedPlanIntent() {
+        var picked = document.querySelector('input[name="billing-plan"]:checked');
+        return (picked && picked.value) || getSelectedPlan();
+      }
+      function isPlanCheckoutAvailable(plan) {
+        return !!(plan && window.checkoutPlanHealth && window.checkoutPlanHealth[plan]);
+      }
+      function planAmountLabel(plan) {
+        var amounts = { single: 300, bundle: 1000, subscription: 2000 };
+        var fromHealth = window.checkoutPlanAmounts && window.checkoutPlanAmounts[plan];
+        var n = Number.isFinite(fromHealth) ? fromHealth : amounts[plan];
+        return Number.isFinite(n) ? n : null;
+      }
+      function updateDecoupleCtaForPlan() {
+        if (!decoupleBtn) return;
+        var plan = getSelectedPlan();
+        var amount = planAmountLabel(plan);
+        if (plan === 'bundle' && amount) {
+          decoupleBtn.textContent = t('decoupleCtaBundle', 'Analysis decoupling (¥1,000 — 5 runs)');
+        } else if (amount) {
+          decoupleBtn.textContent = formatCreditsTemplate(
+            t('decoupleCtaAmount', 'Analysis decoupling (¥{n})'),
+            amount,
+          );
+        } else if (copy && copy.decoupleCta) {
+          decoupleBtn.textContent = copy.decoupleCta;
+        }
+      }
+      function showCreditsUi(count, options) {
+        var n = typeof count === 'number' ? count : 0;
+        window.kairosCreditsBalance = n;
+        persistCreditsLocal(n);
+        updateCreditsBanner();
+        var reportEl = document.getElementById('credits-remaining-report');
+        if (reportEl) {
+          if (n > 0) {
+            reportEl.textContent = formatCreditsTemplate(
+              t('creditsRemainingReport', 'You have {n} analyses left on this plan.'),
+              n,
+            );
+            reportEl.classList.remove('hidden');
+          } else {
+            reportEl.textContent = '';
+            reportEl.classList.add('hidden');
+          }
+        }
+        if (options && options.scroll !== false) {
+          var target = n > 0 ? reportEl : omenReport;
+          if (target && target.scrollIntoView) {
+            window.setTimeout(function () {
+              target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 120);
+          }
+        }
+      }
+      function updateCreditsReportExhausted(payload) {
+        var reportEl = document.getElementById('credits-remaining-report');
+        if (!reportEl || !payload) return;
+        if (
+          payload.creditsRemaining === 0 &&
+          payload.lastGrantPlan === 'bundle' &&
+          !payload.purchaseRequired
+        ) {
+          reportEl.textContent = t(
+            'creditsBundleExhaustedReport',
+            'All 5 runs in your pack are used. Purchase a plan to continue.',
+          );
+          reportEl.classList.remove('hidden');
+        }
       }
       function goToStripeCheckout(plan, inputText) {
         var currentLocale = document.documentElement.lang || 'ja';
         var selectedPlan = plan || getSelectedPlan();
         var text = inputText || ((pasteInput && pasteInput.value) || '').trim();
+        var ref = getReferralCode();
         fetch('/api/checkout/prepare', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -611,6 +1029,7 @@
             locale: currentLocale,
             inputText: text,
             kairosUserId: getKairosUserId(),
+            referralCode: ref || undefined,
           }),
         })
           .then(function (r) { return r.json(); })
@@ -622,11 +1041,25 @@
             window.location.href = '/api/checkout?plan=' + encodeURIComponent(selectedPlan) + '&locale=' + encodeURIComponent(currentLocale);
           });
       }
+      function showScarabAnalyzeOverlay() {
+        if (!scarabAnalyzeOverlay) return;
+        if (scarabOverlayStatus) scarabOverlayStatus.textContent = t('statusAnalyzing', 'Analyzing…');
+        scarabAnalyzeOverlay.classList.remove('hidden');
+        scarabAnalyzeOverlay.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('overflow-hidden');
+      }
+      function hideScarabAnalyzeOverlay() {
+        if (!scarabAnalyzeOverlay) return;
+        scarabAnalyzeOverlay.classList.add('hidden');
+        scarabAnalyzeOverlay.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('overflow-hidden');
+      }
       function runAnalyzeRequest(inputText, checkoutSessionId, analyzeRequestId) {
         if (!inputText) return Promise.resolve();
         if (!analyzeBtn) return Promise.resolve();
         analyzeBtn.disabled = true;
         if (analyzeStatus) analyzeStatus.textContent = t('statusAnalyzing', 'Analyzing…');
+        showScarabAnalyzeOverlay();
         pulseReportScarab();
         var body = {
           inputText: inputText,
@@ -638,6 +1071,7 @@
         return fetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
           body: JSON.stringify(body),
         })
           .then(function (r) {
@@ -647,28 +1081,34 @@
             });
           })
           .then(function (payload) {
+            window.lastAnalyzePayload = payload;
+            updateShareCardUi(payload);
             if (typeof payload.creditsRemaining === 'number') {
-              window.kairosCreditsBalance = payload.creditsRemaining;
-              updateCreditsBanner();
+              showCreditsUi(payload.creditsRemaining, { scroll: true });
+            }
+            if (payload.generatedBy === 'fallback' && analyzeStatus) {
+              analyzeStatus.textContent = t('statusFallbackNotice', 'Preview text shown — generation did not complete. Please retry.');
             }
             renderAnalyzeResult(payload);
-            if (analyzeStatus) {
-              if (payload.purchaseRequired) {
-                analyzeStatus.textContent = t('creditsExhausted', 'No analyses left. Please purchase a plan.');
-              } else if (typeof payload.creditsRemaining === 'number') {
-                analyzeStatus.textContent = formatCreditsTemplate(
-                  t('statusAnalyzedWithCredits', 'Done. Remaining: {n}'),
-                  payload.creditsRemaining,
-                );
-              } else {
-                analyzeStatus.textContent = t('statusAnalyzed', 'Done.');
-              }
+            updateCreditsReportExhausted(payload);
+            if (analyzeStatus && payload.generatedBy !== 'fallback') {
+              analyzeStatus.textContent = resolveAnalyzeStatusMessage(payload);
             }
           })
           .catch(function (e) {
-            if (analyzeStatus) analyzeStatus.textContent = t('errorPrefix', 'Error: ') + (e.message || 'failed');
+            if (analyzeStatus) {
+              var msg = e.message || 'failed';
+              if (msg === 'generation_failed') {
+                analyzeStatus.textContent = t('statusGenerationFailed', 'Generation failed. Please retry — your credit was not used.');
+              } else {
+                analyzeStatus.textContent = t('errorPrefix', 'Error: ') + msg;
+              }
+            }
           })
-          .then(function () { analyzeBtn.disabled = false; });
+          .then(function () {
+            hideScarabAnalyzeOverlay();
+            analyzeBtn.disabled = false;
+          });
       }
       function runPendingAnalyzeAfterCheckout() {
         var params = new URLSearchParams(window.location.search);
@@ -676,12 +1116,16 @@
         var sessionId = params.get('session_id') || '';
         var inputText = '';
         try { inputText = sessionStorage.getItem('kairos_pending_input') || ''; } catch (_) {}
+        var fromTextarea = ((pasteInput && pasteInput.value) || '').trim();
+        if (fromTextarea) inputText = fromTextarea;
         if (!sessionId) {
           if (analyzeStatus) analyzeStatus.textContent = t('errorPrefix', 'Error: ') + 'missing session_id';
           return;
         }
         runAnalyzeRequest(inputText.trim(), sessionId, newAnalyzeRequestId()).then(function () {
           try { sessionStorage.removeItem('kairos_pending_input'); } catch (_) {}
+          return refreshCredits();
+        }).then(function () {
           if (window.history && window.history.replaceState) {
             window.history.replaceState({}, '', window.location.pathname);
           }
@@ -747,25 +1191,70 @@
         rs.classList.remove('animate-scarab-pulse', 'animate-scarab-gold-aura');
         void rs.offsetWidth; rs.classList.add(sealed ? 'animate-scarab-pulse' : 'animate-scarab-gold-aura');
       }
-      if (decoupleBtn) decoupleBtn.addEventListener('click', function () { goToStripeCheckout(getSelectedPlan()); });
+      function beginPaidCheckout(inputText, plan) {
+        var intent = plan || getCheckedPlanIntent();
+        var checkoutPlan = isPlanCheckoutAvailable(intent) ? intent : getSelectedPlan();
+        if (!isPlanCheckoutAvailable(checkoutPlan)) {
+          if (analyzeStatus) {
+            analyzeStatus.textContent = t('checkoutPlanUnavailable', 'This plan is temporarily unavailable. Please choose ¥300 single.');
+          }
+          return;
+        }
+        if (intent !== checkoutPlan && analyzeStatus) {
+          analyzeStatus.textContent = t('checkoutPlanSwitched', 'Selected plan is unavailable; using the single plan (¥300).');
+        } else if (analyzeStatus) {
+          var amount = planAmountLabel(checkoutPlan);
+          if (amount) {
+            analyzeStatus.textContent = formatCreditsTemplate(
+              t('checkoutRedirecting', 'Redirecting to payment (¥{n})…'),
+              amount,
+            );
+          }
+        }
+        try { sessionStorage.setItem('kairos_pending_input', inputText || ''); } catch (_) {}
+        try { sessionStorage.setItem('kairos_locale', locale); } catch (_) {}
+        try { sessionStorage.setItem('kairos_checkout_plan', checkoutPlan); } catch (_) {}
+        goToStripeCheckout(checkoutPlan, inputText);
+      }
+      if (decoupleBtn) {
+        decoupleBtn.addEventListener('click', function () {
+          var inputText = ((pasteInput && pasteInput.value) || '').trim();
+          var plan = getCheckedPlanIntent();
+          Promise.all([refreshCredits(), refreshCheckoutPlanHealth()]).then(function () {
+            if ((window.kairosCreditsBalance || 0) > 0) {
+              if (!inputText) {
+                if (analyzeStatus) analyzeStatus.textContent = t('errorNoInput', 'Add input.');
+                return;
+              }
+              return runAnalyzeRequest(inputText, null, newAnalyzeRequestId());
+            }
+            beginPaidCheckout(inputText, plan);
+          });
+        });
+      }
+      var planPickerEl = document.getElementById('plan-picker');
+      if (planPickerEl) {
+        planPickerEl.addEventListener('change', function () {
+          updateDecoupleCtaForPlan();
+        });
+      }
       if (analyzeBtn) analyzeBtn.addEventListener('click', function () {
         function run() {
           var inputText = ((pasteInput && pasteInput.value) || '').trim();
           if (!inputText) { if (analyzeStatus) analyzeStatus.textContent = t('errorNoInput', 'Add input.'); return; }
+          var planAtClick = getCheckedPlanIntent();
           Promise.all([refreshCredits(), refreshCheckoutPlanHealth()]).then(function () {
+            updateDecoupleCtaForPlan();
             if ((window.kairosCreditsBalance || 0) > 0) {
+              if (analyzeStatus) {
+                analyzeStatus.textContent = t(
+                  'statusUsingCredit',
+                  'Using your remaining credits (no additional payment).',
+                );
+              }
               return runAnalyzeRequest(inputText, null, newAnalyzeRequestId());
             }
-            var plan = getSelectedPlan();
-            if (!window.checkoutPlanHealth[plan]) {
-              if (analyzeStatus) {
-                analyzeStatus.textContent = t('checkoutPlanUnavailable', 'This plan is temporarily unavailable. Please choose ¥300 single.');
-              }
-              return;
-            }
-            try { sessionStorage.setItem('kairos_pending_input', inputText); } catch (_) {}
-            try { sessionStorage.setItem('kairos_locale', locale); } catch (_) {}
-            goToStripeCheckout(plan, inputText);
+            beginPaidCheckout(inputText, planAtClick);
           });
         }
         if (copy) run(); else initLocale().then(run);
@@ -803,10 +1292,76 @@
           var picker = document.getElementById('locale-picker');
           if (picker) picker.addEventListener('change', function () { onLocaleChange(picker.value); });
           if (status) status.textContent = t('statusAwaiting', 'Awaiting signal…');
+          initReferralFromUrl();
+          updateSocialMetaFromUrl();
           return Promise.all([refreshCredits(), refreshCheckoutPlanHealth()]);
         })
         .then(function () {
+          updateDecoupleCtaForPlan();
           runPendingAnalyzeAfterCheckout();
+          var dl = document.getElementById('share-card-download-btn');
+          var xb = document.getElementById('share-x-btn');
+          var nb = document.getElementById('share-native-btn');
+          var cl = document.getElementById('share-copy-link-btn');
+          if (dl) {
+            dl.addEventListener('click', function () {
+              dl.disabled = true;
+              downloadShareCardPng()
+                .catch(function () {
+                  var url = buildShareCardUrl(window.lastAnalyzePayload);
+                  var a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'kairos-share-card.svg';
+                  a.click();
+                })
+                .finally(function () {
+                  dl.disabled = false;
+                });
+            });
+          }
+          if (cl) {
+            cl.addEventListener('click', function () {
+              var url = buildInviteUrl(getKairosUserId());
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).catch(function () {});
+              } else {
+                window.prompt(t('shareCopyLink', 'Copy link'), url);
+              }
+            });
+          }
+          if (nb) {
+            nb.addEventListener('click', function () {
+              var base = buildNativeSharePayload();
+              nb.disabled = true;
+              shareCardToPngBlob(buildShareCardUrl(window.lastAnalyzePayload))
+                .then(function (blob) {
+                  var file = new File([blob], 'kairos-share-card.png', { type: 'image/png' });
+                  var payload = { title: base.title, text: base.text, url: base.url };
+                  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    payload.files = [file];
+                  }
+                  return navigator.share(payload);
+                })
+                .catch(function () {
+                  return navigator.share({
+                    title: base.title,
+                    text: base.text + ' ' + base.url,
+                  });
+                })
+                .catch(function () {})
+                .finally(function () {
+                  nb.disabled = false;
+                });
+            });
+          }
+          if (xb) {
+            xb.addEventListener('click', function () {
+              window.open(
+                'https://twitter.com/intent/tweet?text=' + encodeURIComponent(buildShareTweetText()),
+                '_blank',
+              );
+            });
+          }
         })
         .catch(function () {
           if (status) status.textContent = 'Awaiting signal…';

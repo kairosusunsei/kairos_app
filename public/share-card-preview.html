@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>KAIROS — シェアカードプレビュー</title>
+  <link rel="stylesheet" href="/styles.css"/>
+  <style>
+    body { background: #0f0731; color: #f2ebe0; padding: 1.5rem; font-family: system-ui, sans-serif; }
+    h1 { font-family: Georgia, serif; color: #c9a56a; letter-spacing: 0.08em; }
+    .tc { margin-bottom: 2.5rem; border: 2px solid rgba(155,119,61,0.45); border-radius: 8px; padding: 1rem; background: rgba(15,7,49,0.8); }
+    .tc h2 { font-size: 1rem; color: #00d4ff; margin-bottom: 0.75rem; }
+    .card-wrap { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start; }
+    .card-wrap img { width: 320px; max-width: 100%; height: auto; border: 2px solid #9b773d; border-radius: 8px; }
+    .meta { font-size: 0.85rem; color: #d8d0c4; max-width: 28rem; line-height: 1.6; }
+    .tweet { margin-top: 0.75rem; padding: 0.75rem; background: rgba(0,0,0,0.25); border-radius: 6px; font-size: 0.8rem; white-space: pre-wrap; }
+    a { color: #00f0ff; }
+  </style>
+</head>
+<body>
+  <h1>シェアカード — テストケース</h1>
+  <p class="meta">固定フィクスチャ5件。本番では解析完了後に <code>/api/share-card</code> が動的生成します。</p>
+  <p class="meta"><a href="/">← トップへ</a> · <a href="/admin/dashboard.html">運用ダッシュボード</a></p>
+  <div id="cases"></div>
+  <script>
+    var fixtures = [
+      { id: 'ja-standard', title: 'TC1 — 日本語・標準（スコア89）', score: 89, teaser: '今夜の会話で、あなたが選んだ言葉が静かに道を開いています。', locale: 'ja', ref: 'kairos_preview_01' },
+      { id: 'ja-high', title: 'TC2 — 日本語・高スコア（99）', score: 99, teaser: 'いま感じている迷いは、次の一歩の前触れとして整いつつあります。', locale: 'ja', ref: 'kairos_preview_02' },
+      { id: 'en-standard', title: 'TC3 — English', score: 91, teaser: 'What you wrote tonight is already shaping a clearer next move.', locale: 'en', ref: 'kairos_preview_en' },
+      { id: 'ja-long-teaser', title: 'TC4 — 長文抜粋（省略確認）', score: 87, teaser: 'これは非常に長い思考共鳴ベクトルのサンプル文です。カード上では約七十二文字で切り詰められ、末尾に省略記号が付きます。読みやすさを優先します。', locale: 'ja', ref: 'kairos_preview_long' },
+      { id: 'ja-minimal', title: 'TC5 — 最小入力', score: 77, teaser: '', locale: 'ja', ref: '' }
+    ];
+    function tweetText(f) {
+      var url = f.ref ? 'https://get-kairos.online/?ref=' + encodeURIComponent(f.ref) : 'https://get-kairos.online';
+      if (f.locale === 'en') return 'I unlocked my KAIROS behavioral analytics report. Try yours: ' + url + ' #EntertainKAIROS';
+      return '深層心理レポートを解析解禁しました。あなたも試してみてください ' + url + ' #エンタメカイロス';
+    }
+    function cardUrl(f) {
+      var q = new URLSearchParams({ score: String(f.score), teaser: f.teaser, locale: f.locale });
+      if (f.ref) q.set('ref', f.ref);
+      return '/api/share-card?' + q.toString();
+    }
+    var root = document.getElementById('cases');
+    fixtures.forEach(function (f) {
+      var div = document.createElement('div');
+      div.className = 'tc';
+      div.innerHTML =
+        '<h2>' + f.title + '</h2>' +
+        '<div class="card-wrap">' +
+        '<img src="' + cardUrl(f) + '" alt="' + f.title + '" width="1080" height="1080"/>' +
+        '<div class="meta">' +
+        '<p><strong>画像URL:</strong><br/><a href="' + cardUrl(f) + '" target="_blank" rel="noopener">' + cardUrl(f) + '</a></p>' +
+        '<p><strong>推奨投稿文:</strong></p>' +
+        '<div class="tweet"></div>' +
+        '<p><a href="https://twitter.com/intent/tweet?text=' + encodeURIComponent(tweetText(f)) + '" target="_blank" rel="noopener">X で投稿（テスト）</a></p>' +
+        '</div></div>';
+      div.querySelector('.tweet').textContent = tweetText(f);
+      root.appendChild(div);
+    });
+  </script>
+</body>
+</html>

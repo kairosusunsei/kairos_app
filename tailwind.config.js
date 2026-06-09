@@ -93,6 +93,28 @@ module.exports = {
               'brightness(1.12) drop-shadow(0 0 14px rgba(255, 215, 140, 0.85)) drop-shadow(0 0 32px rgba(155, 119, 61, 0.65))',
           },
         },
+        'scarab-anchor-pulse': {
+          '0%, 100%': {
+            transform: 'scale(1)',
+            filter: 'brightness(1) saturate(1.08)',
+            opacity: '0.9',
+          },
+          '40%': {
+            transform: 'scale(1.05)',
+            filter:
+              'brightness(1.28) saturate(1.25) drop-shadow(0 0 28px rgba(255, 176, 64, 0.75)) drop-shadow(0 0 56px rgba(0, 210, 255, 0.45))',
+            opacity: '1',
+          },
+          '72%': {
+            transform: 'scale(1.02)',
+            filter: 'brightness(1.12) saturate(1.12) drop-shadow(0 0 18px rgba(255, 200, 100, 0.5))',
+            opacity: '0.95',
+          },
+        },
+        'scarab-anchor-glow': {
+          '0%, 100%': { opacity: '0.28', transform: 'scale(0.88)' },
+          '50%': { opacity: '0.92', transform: 'scale(1.18)' },
+        },
         'report-prismatic': {
           '0%, 100%': { filter: 'hue-rotate(0deg) saturate(1.15)' },
           '33%': { filter: 'hue-rotate(12deg) saturate(1.35)' },
@@ -108,6 +130,8 @@ module.exports = {
         'pulse-cta': 'pulse-cta 1.35s ease-in-out infinite',
         'scarab-gold-aura': 'scarab-gold-aura 2.4s ease-in-out infinite',
         'scarab-unseal': 'scarab-unseal 1.15s ease-out forwards',
+        'scarab-anchor-pulse': 'scarab-anchor-pulse 1.85s ease-in-out infinite',
+        'scarab-anchor-glow': 'scarab-anchor-glow 1.85s ease-in-out infinite',
         'report-prismatic': 'report-prismatic 14s ease-in-out infinite',
       },
     },

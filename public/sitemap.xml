@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://get-kairos.online/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://get-kairos.online/topics/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://get-kairos.online/topics/synchronicity.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://get-kairos.online/topics/journaling.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://get-kairos.online/topics/cognitive-bias.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://get-kairos.online/topics/decision-making.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+</urlset>

@@ -3,11 +3,18 @@
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/webhook", "destination": "/api/index" },
-    { "source": "/legal/tokushoho", "destination": "/api/index" }
+    { "source": "/legal/tokushoho", "destination": "/api/index" },
+    { "source": "/invite", "destination": "/api/index" }
   ],
   "functions": {
     "api/index.js": {
       "maxDuration": 300
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/dm-scout",
+      "schedule": "0 0 * * *"
+    }
+  ]
 }

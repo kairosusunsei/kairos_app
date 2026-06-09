@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>KAIROS — 運用ダッシュボード</title>
+  <link rel="stylesheet" href="/styles.css"/>
+  <style>
+    body { background: #0f0731; color: #f2ebe0; padding: 1.25rem; font-family: system-ui, sans-serif; max-width: 56rem; margin: 0 auto; }
+    h1 { color: #c9a56a; font-family: Georgia, serif; }
+    input, button { padding: 0.5rem 0.75rem; border-radius: 6px; border: 1px solid #9b773d; background: #140a3d; color: #f2ebe0; }
+    button { cursor: pointer; font-weight: 700; }
+    pre { background: rgba(0,0,0,0.35); padding: 1rem; border-radius: 8px; overflow: auto; font-size: 0.8rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.85rem; }
+    th, td { border: 1px solid rgba(155,119,61,0.35); padding: 0.5rem; text-align: left; }
+    th { color: #c9a56a; }
+    .warn { color: #ff9500; font-size: 0.85rem; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>運用ダッシュボード</h1>
+  <p>Stripe 実績 + 紹介集計（要 <code>KAIROS_ADMIN_SECRET</code>）。</p>
+  <p><a href="/">トップ</a> · <a href="/share-card-preview.html">シェアカードプレビュー</a></p>
+  <div style="margin: 1rem 0; display:flex; gap:0.5rem; flex-wrap:wrap;">
+    <input id="admin-key" type="password" placeholder="Admin secret" style="min-width:16rem"/>
+    <button type="button" id="load-btn">読み込み</button>
+  </div>
+  <p class="warn">秘密鍵は Vercel の <code>KAIROS_ADMIN_SECRET</code> と一致させてください。URLに鍵を残さないよう、読み込み後はメモリのみで保持します。</p>
+  <pre id="out">未読み込み</pre>
+  <div id="referrers"></div>
+  <script>
+    var keyInput = document.getElementById('admin-key');
+    var out = document.getElementById('out');
+    var refBox = document.getElementById('referrers');
+    try {
+      var saved = sessionStorage.getItem('kairos_admin_key');
+      if (saved) keyInput.value = saved;
+    } catch (_) {}
+    document.getElementById('load-btn').addEventListener('click', function () {
+      var key = keyInput.value.trim();
+      if (!key) { out.textContent = 'Admin secret を入力してください。'; return; }
+      try { sessionStorage.setItem('kairos_admin_key', key); } catch (_) {}
+      out.textContent = 'Loading…';
+      fetch('/api/admin/metrics', { headers: { 'X-KAIROS-Admin-Key': key }, cache: 'no-store' })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'failed'); return j; }); })
+        .then(function (data) {
+          out.textContent = JSON.stringify(data, null, 2);
+          if (!data.referrals || !data.referrals.referrers || !data.referrals.referrers.length) {
+            refBox.innerHTML = '<p>紹介データはまだありません。</p>';
+            return;
+          }
+          var html = '<h2 style="color:#c9a56a;margin-top:1.5rem">紹介ランキング</h2><table><thead><tr><th>ref</th><th>訪問</th><th>決済</th><th>売上(JPY)</th></tr></thead><tbody>';
+          data.referrals.referrers.forEach(function (row) {
+            html += '<tr><td>' + row.referralCode + '</td><td>' + row.visits + '</td><td>' + row.conversions + '</td><td>' + row.revenueJpy + '</td></tr>';
+          });
+          html += '</tbody></table>';
+          refBox.innerHTML = html;
+        })
+        .catch(function (e) { out.textContent = 'Error: ' + e.message; refBox.innerHTML = ''; });
+    });
+  </script>
+</body>
+</html>

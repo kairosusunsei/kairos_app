@@ -30,3 +30,6 @@ Disallow: /
 
 User-agent: *
 Allow: /
+Allow: /llms.txt
+
+# AEO: llms.txt for AI answer engines — https://get-kairos.online/llms.txt
