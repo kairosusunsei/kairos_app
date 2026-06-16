@@ -35,6 +35,10 @@ const socialImage = require(path.join(__dirname, '..', 'lib', 'social-image.js')
 const ogCard = require(path.join(__dirname, '..', 'lib', 'og-card.js'));
 const rasterizeSvg = require(path.join(__dirname, '..', 'lib', 'rasterize-svg.js'));
 const xDmScout = require(path.join(__dirname, '..', 'lib', 'x-dm-scout.js'));
+const strategicMonitor = require(path.join(__dirname, '..', 'lib', 'strategic-monitor.js'));
+const cursorMonitor = require(path.join(__dirname, '..', 'lib', 'cursor-monitor.js'));
+const wedgeAtlas = require(path.join(__dirname, '..', 'lib', 'wedge-atlas/snapshot.js'));
+const wedgeMembership = require(path.join(__dirname, '..', 'lib', 'wedge-atlas/membership.js'));
 const rateLimit = require(path.join(__dirname, '..', 'lib', 'rate-limit.js'));
 
 const app = express();
@@ -1341,6 +1345,147 @@ app.post('/api/payment-intent', async (req, res) => {
       purp: metadata.iso20022_purp_cd,
       strd: metadata.iso20022_strd_json,
     },
+  });
+});
+
+/** Vercel Cron: weekly strategic chokepoint scan. Auth: Bearer CRON_SECRET */
+app.get('/api/cron/strategic-scan', async (req, res) => {
+  const secret = process.env.CRON_SECRET;
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!secret || token !== secret) {
+    return res.status(401).json({ ok: false, error: 'unauthorized' });
+  }
+
+  const report = await strategicMonitor.runStrategicScan();
+  let email = { sent: false };
+  const notifyEmail = process.env.KAIROS_SCOUT_NOTIFY_EMAIL || process.env.STRATEGIC_NOTIFY_EMAIL;
+  if (notifyEmail && report.alertCount > 0) {
+    email = await xDmScout.sendNotifyEmail(
+      notifyEmail,
+      `KAIROS Strategic Alerts — ${report.alertCount} signals`,
+      report.markdown,
+    );
+  }
+
+  return res.status(200).json({
+    ok: report.ok,
+    generatedAt: report.generatedAt,
+    alertCount: report.alertCount,
+    wedgeCount: report.wedgeCount,
+    alerts: report.alerts,
+    persistence: report.persistence,
+    email,
+    markdown: report.markdown,
+  });
+});
+
+app.get('/api/strategic/catalog', (req, res) => {
+  if (!assertAdminKey(req, res)) return;
+  const tier = String(req.query.tier || '').trim();
+  let items = strategicMonitor.catalog.getCatalog();
+  if (tier) items = items.filter((c) => c.tier === tier);
+  return res.status(200).json({
+    success: true,
+    count: items.length,
+    items,
+    rssFeeds: strategicMonitor.catalog.RSS_FEEDS,
+  });
+});
+
+app.get('/api/strategic/scan', async (req, res) => {
+  if (!assertAdminKey(req, res)) return;
+  const skipNews = req.query.skipNews === '1';
+  const report = await strategicMonitor.runStrategicScan({ skipNews });
+  return res.status(200).json({ success: true, ...report });
+});
+
+app.get('/api/strategic/alerts', async (req, res) => {
+  if (!assertAdminKey(req, res)) return;
+  const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+  const rows = await strategicMonitor.store.getRecentAlerts(limit);
+  return res.status(200).json({ success: true, alerts: rows, persisted: strategicMonitor.store.usePg() });
+});
+
+/** Wedge Atlas — 公開スナップショット（調達先リストは非開示） */
+app.get('/api/wedge/snapshot/public', (req, res) => {
+  const snap = wedgeAtlas.buildSnapshot({ member: false });
+  return res.status(200).json(snap);
+});
+
+/** Wedge Atlas — 会員スナップショット */
+app.get('/api/wedge/snapshot', (req, res) => {
+  const member = wedgeMembership.parseBearer(req);
+  if (!member) {
+    return res.status(401).json({ ok: false, error: 'membership_required' });
+  }
+  const includeSovereign = req.query.sovereign === '1';
+  const snap = wedgeAtlas.buildSnapshot({
+    member: true,
+    plan: member.plan,
+    includeSovereign,
+  });
+  return res.status(200).json(snap);
+});
+
+/** Wedge Atlas — Stripe Checkout（plan=pro|operator） */
+app.get('/api/wedge/checkout', async (req, res) => {
+  if (!stripe) {
+    return res.status(503).json({ ok: false, error: 'stripe_not_configured' });
+  }
+  const plan = String(req.query.plan || 'pro').toLowerCase();
+  const result = await wedgeMembership.createCheckoutSession(stripe, req, plan);
+  if (!result.ok) {
+    return res.status(503).json({ ok: false, error: result.reason });
+  }
+  return res.redirect(303, result.url);
+});
+
+/** Wedge Atlas — Checkout 完了後トークン発行 */
+app.get('/api/wedge/session', async (req, res) => {
+  if (!stripe) {
+    return res.status(503).json({ ok: false, error: 'stripe_not_configured' });
+  }
+  const sessionId = String(req.query.session_id || '').trim();
+  const result = await wedgeMembership.exchangeSessionForToken(stripe, sessionId);
+  if (!result.ok) {
+    return res.status(400).json({ ok: false, error: result.reason });
+  }
+  return res.status(200).json(result);
+});
+
+/** Vercel Cron: daily Cursor changelog/pricing/blog watch. Auth: Bearer CRON_SECRET */
+app.get('/api/cron/cursor-watch', async (req, res) => {
+  const secret = process.env.CRON_SECRET;
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!secret || token !== secret) {
+    return res.status(401).json({ ok: false, error: 'unauthorized' });
+  }
+
+  const report = await cursorMonitor.runCursorWatch();
+  let email = { sent: false };
+  const notifyEmail = process.env.KAIROS_SCOUT_NOTIFY_EMAIL || process.env.STRATEGIC_NOTIFY_EMAIL;
+  const shouldEmail = notifyEmail && (report.changes.length > 0 || report.baselineOnly);
+
+  if (shouldEmail) {
+    const subject = report.baselineOnly
+      ? 'KAIROS Cursor監視 — 監視開始（ベースライン保存）'
+      : `KAIROS Cursor監視 — 変更 ${report.changes.length} 件検出`;
+    email = await xDmScout.sendNotifyEmail(notifyEmail, subject, report.text);
+  }
+
+  return res.status(200).json({
+    ok: report.ok,
+    generatedAt: report.generatedAt,
+    changeCount: report.changeCount,
+    baselineOnly: report.baselineOnly,
+    changes: report.changes,
+    errors: report.errors,
+    impact: report.impact,
+    persistence: report.persistence,
+    email,
+    text: report.text,
   });
 });
 

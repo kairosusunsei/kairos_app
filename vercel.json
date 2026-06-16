@@ -15,6 +15,14 @@
     {
       "path": "/api/cron/dm-scout",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/cursor-watch",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/strategic-scan",
+      "schedule": "0 9 * * 1"
     }
   ]
 }

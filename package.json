@@ -10,7 +10,9 @@
     "build:css": "tailwindcss -i ./src/input.css -o ./public/styles.css --minify",
     "build": "npm run build:css",
     "prestart": "npm run build:css",
-    "scout:x-dm": "node scripts/x-dm-scout.js"
+    "scout:x-dm": "node scripts/x-dm-scout.js",
+    "scout:strategic": "node scripts/strategic-scan.js",
+    "scout:cursor": "node scripts/cursor-watch.js"
   },
   "engines": {
     "node": ">=18.x"
